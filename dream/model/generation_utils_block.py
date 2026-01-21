@@ -380,7 +380,9 @@ class DreamGenerationMixin:
             generation_config=generation_config,
             threshold=threshold,
             block_length=block_length,
-            dual_cache=dual_cache
+            dual_cache=dual_cache,
+            ar_guidance_model=kwargs.get("ar_guidance_model", None),
+            guidance_gamma=kwargs.get("guidance_gamma", 0.2)
         )
         return result
 
@@ -392,6 +394,8 @@ class DreamGenerationMixin:
         threshold: Optional[float] = 0.9,
         block_length: Optional[int] = 32,
         dual_cache: bool = False,
+        ar_guidance_model = None,
+        guidance_gamma: float = 0.2
     ) -> Union[DreamModelOutput, torch.LongTensor]:
         # init values
         
@@ -441,13 +445,170 @@ class DreamGenerationMixin:
         # Initialize cache for the prompt
         past_key_values = None
 
-        # Process each block
-        for num_block in range(num_blocks):
+        current_generated_len = 0
+        
+        # Adaptive-dLLM Loop
+        while current_generated_len < gen_length:
             
-            current_block_start = input_ids.shape[1] + num_block * block_length
-            current_block_end = current_block_start + block_length
-
+            # 1. Calculate Policy Inputs
+            # We need hidden states of the last token.
+            # If we have cache, we can just run the last token?
+            # Or simpler: run forward on current sequence if cache not perfect or just to get policy inputs.
+            # Ideally, get it from previous block's last step output?
+            # DreamModel returns hidden states.
+            
+            # For simplicity in this refactor, we run a forward pass to get state for policy.
+            # Beware of overhead.
+            # Using the last available x (which is full length but filled with masks beyond current).
+            
+            # slice x to current valid length
+            valid_len = input_ids.shape[1] + current_generated_len
+            current_ids = x[:, :valid_len]
+            
+            # We need output_hidden_states=True
+            outputs = self(
+                current_ids, 
+                output_hidden_states=True, 
+                use_cache=True, 
+                past_key_values=past_key_values
+            )
             # update cache
+            past_key_values = outputs.past_key_values
+            
+            last_hidden_state = outputs.hidden_states[-1][:, -1, :]
+            last_logits = self.lm_head(last_hidden_state) # DreamModel has lm_head
+            last_probs = torch.softmax(last_logits, dim=-1)
+            entropy = -torch.sum(last_probs * torch.log(last_probs + 1e-9), dim=-1, keepdim=True)
+            
+            # 1. Policy Prediction
+            if hasattr(self, 'policy_net'):
+                block_len = self.policy_net.predict(last_hidden_state, entropy).item()
+            else:
+                block_len = block_length or 32
+            
+            # 2. Safety Clip
+            remaining = gen_length - current_generated_len
+            block_len = min(block_len, remaining)
+            if block_len <= 0: break
+
+            # 3. Pre-compute Guidance Target
+            guidance_target = None
+            # Need access to ar_guidance_model. Not in arguments currently?
+            # Assuming it might be in kwargs or attached to self.
+            if hasattr(self, 'ar_guidance_model') and self.ar_guidance_model is not None:
+                ar_logits = self.ar_guidance_model(current_ids)
+                guidance_target = self.compute_guidance_target(ar_logits)
+
+            # 4. Prepare Position IDs
+            current_block_start = valid_len
+            current_block_end = valid_len + block_len
+            position_ids = torch.arange(current_block_start, current_block_end, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+
+            # 5. Run Diffusion (Block-wise)
+            
+            # Steps for this block
+            steps_this_block = max(1, int(steps * (block_len / gen_length))) if steps else block_len
+            
+            # Mask the new block in x
+            # x is already padded with MASK, so just use it.
+            
+            # Transfer loop
+            # We need to manage `past_key_values` carefully. 
+            # The previous forward updated `past_key_values` to include `current_ids`.
+            # Now we diffuse the *next* block_len tokens.
+            
+            # We use `x[:, :current_block_end]`
+            
+            # Schedule
+            block_mask_indicator = (x[:, current_block_start:current_block_end] == mask_token_id)
+            num_transfer_tokens_schedule = get_num_transfer_tokens(block_mask_indicator, steps_this_block)
+            
+            # We need to iterate
+            # We must use cache for efficiency? 
+            # If we used cache above for `outputs`, it's valid up to `current_block_start`.
+            
+            # The diffusion loop logic in `dream` usually involves:
+            # - predict full block masked
+            # - transfer some tokens
+            # - repeat
+            
+            # Clone cache for the loop to avoid polluting main cache?
+            # No, diffusion doesn't change history.
+            
+            curr_step_cache = past_key_values
+            
+            for t in range(steps_this_block):
+                 # Check completion
+                 if (x[:, current_block_start:current_block_end] == mask_token_id).sum() == 0:
+                     break
+                 
+                 # Input for checking this block
+                 # We only need to run model on the new block part if we have cache for prefix.
+                 # input_ids for model: x[:, current_block_start:current_block_end]
+                 # But standard `model()` call with `past_key_values` works.
+                 
+                 # Note: in DreamModel forward, `position_ids` argument is used.
+                 
+                 block_input = x[:, current_block_start:current_block_end]
+                 
+                 model_out = self(
+                     block_input,
+                     past_key_values=curr_step_cache,
+                     position_ids=position_ids,
+                     use_cache=True
+                 )
+                 
+                 logits = self.lm_head(model_out[0])
+                 
+                 # Transfer Logic
+                 confidence, x0 = sample_tokens(logits, temperature, top_p, top_k)
+                 
+                 # Only consider currently masked tokens
+                 mask_index_block = (block_input == mask_token_id)
+                 x0 = torch.where(mask_index_block, x0, block_input)
+                 
+                 neg_inf = torch.tensor(torch.finfo(confidence.dtype).min, device=confidence.device, dtype=confidence.dtype)
+                 confidence = torch.where(mask_index_block, confidence, neg_inf)
+
+                 # Determine transfer based on schedule
+                 num_transfer = num_transfer_tokens_schedule[:, t]
+                 
+                 # Select top-k high confidence tokens to unmask
+                 # (Simplified vectorized top-k)
+                 # Sort confidence
+                 sorted_conf, argsort = torch.sort(confidence, dim=1, descending=True)
+                 
+                 # Create mask for top-k
+                 B_size, L_blk = confidence.shape
+                 ranks = torch.arange(L_blk, device=confidence.device).expand(B_size, -1)
+                 # num_transfer is (B,)
+                 is_top_k = ranks < num_transfer.unsqueeze(1)
+                 
+                 # Map back to original indices
+                 transfer_mask_sorted = is_top_k
+                 transfer_mask = torch.zeros_like(transfer_mask_sorted).scatter(1, argsort, transfer_mask_sorted)
+                 
+                 # Valid transfer: must be in top-k AND currently masked
+                 transfer_mask = transfer_mask & mask_index_block
+                 
+                 # Update block input (which is a view/slice of x? No, usually slicing creates a copy or need generic set)
+                 # x is a tensor.
+                 # x[:, current_block_start:current_block_end] assignment works if x is leaf or we are in no_grad
+                 
+                 # Update the slice in x
+                 x_slice = x[:, current_block_start:current_block_end]
+                 x_slice[transfer_mask] = x0[transfer_mask]
+                 x[:, current_block_start:current_block_end] = x_slice
+            
+            current_generated_len += block_len
+
+        return DreamModelOutput(
+            sequences=x,
+            history=tuple(histories) if histories else None
+        )
+
+    def _sample_old_static(
+        self,
             model_output = self(x, attention_mask, tok_idx, use_cache=True)
             past_key_values = model_output.past_key_values
             logits = model_output.logits

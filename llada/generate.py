@@ -82,6 +82,206 @@ def get_num_transfer_tokens(block_mask_index: torch.Tensor, steps: int) -> torch
 
 
 
+@torch.no_grad()
+def generate_adaptive(model, prompt, total_len=128, steps=None, ar_guidance_model=None, temperature=0.,
+                      remasking='low_confidence', mask_id=126336, threshold=None, factor=None, guidance_gamma=0.2):
+    '''
+    Args:
+        model: Mask predictor (LLaDA).
+        prompt: A tensor of shape (B, L).
+        total_len: Maximum length of generated answer.
+        steps: Total steps budget (used to scale steps per block).
+        ar_guidance_model: Small AR model for Phase 3 guidance.
+    '''
+    # print("Generating with Adaptive-dLLM (Refactored Loop)...")
+    device = model.device
+    B = prompt.shape[0]
+    
+    # x contains the committed tokens (initially prompt)
+    x = prompt.clone()
+    
+    current_len = 0
+    nfe = 0
+    
+    while current_len < total_len:
+        # Re-verify 'x' shape
+        L_context = x.shape[1]
+        
+        # 1. Policy Prediction
+        outputs = model(x, output_hidden_states=True)
+        # hidden_states: tuple of (B, L, H)
+        last_hidden_state = outputs.hidden_states[-1][:, -1, :] # (B, H)
+        
+        # Entropy
+        last_logits = outputs.logits[:, -1, :]
+        last_probs = torch.softmax(last_logits, dim=-1)
+        entropy = -torch.sum(last_probs * torch.log(last_probs + 1e-9), dim=-1, keepdim=True)
+        
+        # Predict block length
+        if hasattr(model, 'policy_net'):
+            block_len = model.policy_net.predict(last_hidden_state, entropy).item()
+        else:
+            block_len = 32 # Default fallback
+        
+        # 2. Safety Clip
+        block_len = min(block_len, total_len - current_len)
+        if block_len <= 0:
+            break
+            
+        # 3. Pre-compute Guidance Target (One-Pass Optimization)
+        guidance_target = None
+        if ar_guidance_model is not None:
+            # Run AR ONCE on the current context 'x'
+            ar_logits = ar_guidance_model(x) # [B, L_context, V]
+            # We specifically want targets for the FUTURE tokens. 
+            # AR model predicts next tokens. 
+            # ar_logits[:, -1, :] predicts the first new token.
+            # But wait, AR model predicts *one* step ahead. 
+            # We have a block of length > 1.
+            # We can only guide the FIRST token with 1 running? Or guide with greedy/sampled rollouts?
+            # 
+            # "The AR model must run only ONCE per block (outside the diffusion loop) to pre-compute the guidance target."
+            # If we run it once, we get logits for the *next* token (L_context).
+            # For a block of size block_len, do we have targets for all?
+            # 
+            # Constraint check: "AR model must run only ONCE per block".
+            # This implies we might only guide the *first* token, OR the AR model runs efficiently (KV cache) to project `block_len` tokens?
+            # But AR is sequential. You can't get 2nd token target without picking 1st.
+            # 
+            # If we strictly follow "ONCE per block", we effectively only have the target for the immediate next token.
+            # OR, we assume the AR model output for `current_context_ids` effectively gives us a "plan".
+            # 
+            # Actually, if we just use `last_token_logits`, we guide the first token. 
+            # If we want to guide the whole block, we'd need to roll out AR.
+            # 
+            # Let's assume we use the AR prediction for the *masked positions*. 
+            # But AR cannot predict position t+2 without t+1.
+            # 
+            # "Taylor Guidance uses Temperature-scaled Expected Embedding".
+            # 
+            # Let's assume `guidance_target` is computed for the prompt, which corresponds to the first new token.
+            # For the rest of the block, we either have no guidance or recycled guidance?
+            # 
+            # Simplest interpretation: We have `guidance_target` of shape [B, 1, H] (or [B, H]).
+            # We will apply it to the first masked token (or all? but that's wrong).
+            # Let's apply to the *whole block* but broadcasting? No, that pushes all tokens to be the same.
+            # 
+            # Compromise: We guide ONLY the tokens for which we have targets.
+            # Since AR runs once, we have target for x[L_context].
+            # We will generate guidance_target for this position.
+            
+            # Using logits for the last position in x to predict x[L_context]
+            # ar_logits shape: (B, L, V). Last one predicts L+1.
+            
+            ar_logits_last = ar_logits.logits[:, -1:, :] if hasattr(ar_logits, 'logits') else ar_logits[:, -1:, :]
+            
+            if hasattr(model, 'compute_guidance_target'):
+                guidance_target = model.compute_guidance_target(ar_logits_last) # (B, 1, H)
+            else:
+                guidance_target = None # Should not happen if models updated
+
+        # 4. Prepare Exact Position IDs
+        # Relative to the start of the block
+        position_ids = torch.arange(L_context, L_context + block_len, device=device).unsqueeze(0).expand(B, -1)
+        
+        # 5. Run Diffusion
+        # Prepare input for diffusion: [Context, MASK * block_len]
+        mask_tokens = torch.full((B, block_len), mask_id, dtype=torch.long, device=device)
+        x_block = torch.cat([x, mask_tokens], dim=1)
+        
+        # Diffusion Loop for this block
+        steps_this_block = block_len 
+        if steps is not None:
+             steps_this_block = max(1, int(steps * (block_len / total_len)))
+        
+        current_block_start = L_context
+        current_block_end = L_context + block_len
+        
+        x_curr = x_block.clone()
+        
+        # Schedule
+        block_mask_indicator = torch.ones((B, block_len), dtype=torch.bool, device=device)
+        num_transfer_tokens_schedule = get_num_transfer_tokens(block_mask_indicator, steps_this_block)
+        
+        for t in range(steps_this_block):
+            params_mask = (x_curr[:, current_block_start:] == mask_id)
+            if params_mask.sum() == 0:
+                break
+                
+            nfe += 1
+            
+            # Forward pass with Hidden States
+            model_out = model(x_curr, output_hidden_states=True)
+            logits = model_out.logits
+            hidden_states = model_out.hidden_states[-1] # (B, L_total, H)
+            
+            # --- GUIDANCE INJECTION ---
+            if guidance_target is not None:
+                # Target: expectation of AR for the *first* new token.
+                # Corresponds to hidden_state at 'current_block_start'.
+                # G = gamma * (target - z_t)
+                # z_t = hidden_states[:, current_block_start, :]
+                
+                z_t = hidden_states[:, current_block_start:current_block_start+1, :]
+                
+                # Careful: guidance_target is (B, 1, H). z_t is (B, 1, H).
+                G = guidance_gamma * (guidance_target - z_t)
+                
+                # Update hidden state?
+                # We can't update hidden state inside the model easily (it's already computed).
+                # We update the *effect* of hidden state, i.e., logits.
+                # Logits = (h + G) @ W_out.T
+                #        = h @ W_out.T + G @ W_out.T
+                #        = logits + G @ W_out.T
+                
+                # Need access to readout head.
+                # LLaDA: model.model.transformer.ff_out (if untied) or wte (if tied).
+                # Checking `model.model.transformer.ff_out` availability.
+                # `LLaDAModelLM.get_output_embeddings()`
+                lm_head = model.get_output_embeddings()
+                
+                # Compute adjustment to logits
+                # Using G as "noise_pred" adjustment or directly modifying logits equivalent to shifting embedding.
+                # The user instruction: "Update Noise: noise_pred = noise_pred - G"
+                # If we assume `z_t` is the predicted embedding we want to shift TOWARDS `guidance_target`.
+                # Then we WANT `z_final = z_t + gamma*(target - z_t)`.
+                # So we ADD `G` to `z_t`.
+                # `noise_pred` subtraction is for *denoising*.
+                # If equation is `x_{t-1} = x_t - noise_pred`.
+                # Then `noise_pred_new = noise_pred - G` means `x_{t-1} = x_t - noise_pred + G`.
+                # So we are adding `G`.
+                # So we simply Add `G` to hidden states, then re-project.
+                
+                guidance_term_logits = lm_head(G)
+                
+                # Apply only to the relevant token (first token of block)
+                # logits is (B, L, V).
+                # We add to logits[:, current_block_start, :]
+                
+                logits[:, current_block_start:current_block_start+1, :] += guidance_term_logits
+            
+            # --- END GUIDANCE ---
+            
+            mask_index_full = (x_curr == mask_id)
+            # Only touch the current block
+            mask_index_full[:, :current_block_start] = False
+            mask_index_full[:, current_block_end:] = False 
+            
+            quota = num_transfer_tokens_schedule[:, t] if threshold is None else None
+            
+            if factor is None:
+                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index_full, x_curr, quota, threshold)
+            else:
+                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index_full, x_curr, None, factor)
+            
+            x_curr[transfer_index] = x0[transfer_index]
+            
+        # 6. Update
+        x = x_curr 
+        current_len += block_len
+        
+    return x, nfe
+
 @ torch.no_grad()
 def generate(model, prompt, steps=128, gen_length=128, block_length=128, temperature=0.,
              remasking='low_confidence', mask_id=126336, threshold=None, factor=None):

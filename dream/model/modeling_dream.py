@@ -65,6 +65,31 @@ class MaskedLMOutputWithPastKeyValues(MaskedLMOutput):
         super().__init__(**kwargs)
         self.past_key_values = past_key_values
 
+class BlockPolicyNet(nn.Module):
+    def __init__(self, hidden_size, max_len):
+        super().__init__()
+        self.linear1 = nn.Linear(hidden_size + 1, 256)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(256, max_len)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, hidden_states, entropy, deterministic=True):
+        return self.predict(hidden_states, entropy, deterministic)
+
+    def predict(self, hidden_states, entropy, deterministic=True):
+        # hidden_states: [batch, hidden_size]
+        # entropy: [batch, 1]
+        x = torch.cat([hidden_states, entropy], dim=-1)
+        x = self.linear1(x)
+        x = self.relu(x)
+        logits = self.linear2(x)
+        probs = self.softmax(logits)
+        
+        if deterministic:
+            return torch.argmax(probs, dim=-1)
+        else:
+            return torch.multinomial(probs, num_samples=1).squeeze(-1)
+
 
 # Copied from transformers.models.llama.modeling_llama.LlamaRMSNorm with Llama->Dream
 class DreamRMSNorm(nn.Module):
@@ -796,6 +821,7 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
         self.model = DreamBaseModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.policy_net = BlockPolicyNet(config.hidden_size, config.max_position_embeddings)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -816,6 +842,30 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
 
     def set_output_embeddings(self, new_embeddings):
         self.lm_head = new_embeddings
+
+    def compute_guidance_target(self, ar_logits, temperature=0.5):
+        # 1. Sharpen
+        if temperature > 0:
+            ar_logits = ar_logits / temperature
+        
+        # 2. Probabilities
+        probs = torch.softmax(ar_logits, dim=-1)
+        
+        # 3. Target: Expected Embedding (Top-K=50)
+        topk_probs, topk_indices = torch.topk(probs, k=50, dim=-1) # (B, L, 50)
+        
+        # Re-normalize probs over Top-K
+        topk_probs = topk_probs / topk_probs.sum(dim=-1, keepdim=True)
+        
+        # Get embeddings: (B, L, 50, H)
+        # embed_tokens is the embedding layer
+        wte = self.model.embed_tokens.weight
+        topk_embeddings = F.embedding(topk_indices, wte) 
+        
+        # Expected Embedding: sum(p * E)
+        expected_embedding = torch.sum(topk_probs.unsqueeze(-1) * topk_embeddings, dim=-2)
+        
+        return expected_embedding
 
     def set_decoder(self, decoder):
         self.model = decoder
@@ -865,6 +915,13 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
         hidden_states = outputs[0]
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         logits = self.lm_head(hidden_states[:, -num_logits_to_keep:, :])
+
+        # Adaptive-dLLM: Calculate entropy and predict block size
+        last_hidden_state = hidden_states[:, -1, :]
+        last_logits_entropy = self.lm_head(last_hidden_state)
+        last_token_probs = torch.softmax(last_logits_entropy, dim=-1)
+        entropy = -torch.sum(last_token_probs * torch.log(last_token_probs + 1e-9), dim=-1, keepdim=True)
+        self.policy_net.predict(last_hidden_state, entropy)
 
         loss = None
         if labels is not None:

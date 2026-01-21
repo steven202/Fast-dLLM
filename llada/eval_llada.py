@@ -32,8 +32,8 @@ from lm_eval.api.model import LM
 from lm_eval.api.registry import register_model
 from tqdm import tqdm
 import os
-from transformers import AutoTokenizer, AutoModel, AutoConfig
-from generate import generate, generate_with_prefix_cache, generate_with_dual_cache
+from transformers import AutoTokenizer, AutoModel, AutoConfig, AutoModelForCausalLM
+from generate import generate, generate_with_prefix_cache, generate_with_dual_cache, generate_adaptive
 from model.modeling_llada import LLaDAModelLM
 import json
 import time
@@ -67,26 +67,31 @@ class LLaDAEvalHarness(LM):
         save_dir=None,
         show_speed=False,
         dual_cache=False,
+        mode='turbo',
+        guidance_gamma=0.2,
+        temperature=0.5,
         **kwargs,
     ):
         '''
         Args:
             model_path: LLaDA-8B-Base model path.
-            mask_id: The token id of [MASK] is 126336.
-            max_length: the max sequence length.
-            batch_size: mini batch size.
-            mc_num: Monte Carlo estimation iterations
-            is_check_greedy: For certain metrics like LAMBADA, the evaluation requires the model to verify whether the answer 
-                             is generated through greedy sampling conditioned on the prompt (note that this differs from conditional
-                             generation). We implement this verification through the suffix_greedy_prediction() function, which 
-                             returns a True/False judgment used for accuracy calculation. 
-                             When is_check_greedy is set to True, the lm-evaluation-harness library automatically invokes this function. 
-                             However, since none of the metrics in the LLaDA paper (https://arxiv.org/abs/2502.09992) require this functionality, 
-                             we recommend setting is_check_greedy to False. This configuration causes suffix_greedy_prediction() to return False 
-                             by default, significantly accelerating the evaluation process.
-            cfg_scale: Unsupervised classifier-free guidance scale.
+            ...
+            mode: 'turbo' (Fastest) or 'standard' (Quality).
+            guidance_gamma: Strength of guidance.
+            temperature: Temperature for guidance sharpening.
         '''
         super().__init__()
+        
+        self.mode = mode
+        self.guidance_gamma = guidance_gamma
+        self.temperature = temperature
+        
+        # Load Guidance Model if standard mode
+        self.ar_guidance_model = None
+        if self.mode == 'standard':
+            print("Loading AR Guidance Model (TinyLlama)...")
+            self.ar_guidance_model = AutoModelForCausalLM.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0", torch_dtype=torch.float16, device_map="cuda")
+            self.ar_guidance_model.eval()
 
         accelerator = accelerate.Accelerator()
         if accelerator.num_processes > 1:
@@ -336,7 +341,15 @@ class LLaDAEvalHarness(LM):
 
             stop_tokens = req.args[1]['until']
             input_ids = batched_input_ids
-            if self.use_cache:
+            if self.mode == 'standard' or self.mode == 'turbo':
+                # Adaptive-dLLM
+                generated_answer, nfe = generate_adaptive(
+                    self.model, input_ids, total_len=self.gen_length, steps=self.steps,
+                    ar_guidance_model=self.ar_guidance_model, temperature=self.temperature,
+                    remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor,
+                    guidance_gamma=self.guidance_gamma
+                )
+            elif self.use_cache:
                 if self.dual_cache:
                     generated_answer, nfe = generate_with_dual_cache(self.model, input_ids, steps=self.steps, gen_length=self.gen_length, block_length=self.block_length, 
                                         temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor)

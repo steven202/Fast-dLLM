@@ -94,6 +94,31 @@ log = logging.getLogger(__name__)
 def scaled_dot_product_attention(q, k, v, mask=None, attn_mask=None, dropout_p=0.0, is_causal=False):
     return F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal)
 
+class BlockPolicyNet(nn.Module):
+    def __init__(self, hidden_size, max_len):
+        super().__init__()
+        self.linear1 = nn.Linear(hidden_size + 1, 256)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(256, max_len)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, hidden_states, entropy, deterministic=True):
+        return self.predict(hidden_states, entropy, deterministic)
+
+    def predict(self, hidden_states, entropy, deterministic=True):
+        # hidden_states: [batch, hidden_size]
+        # entropy: [batch, 1]
+        x = torch.cat([hidden_states, entropy], dim=-1)
+        x = self.linear1(x)
+        x = self.relu(x)
+        logits = self.linear2(x)
+        probs = self.softmax(logits)
+        
+        if deterministic:
+            return torch.argmax(probs, dim=-1)
+        else:
+            return torch.multinomial(probs, num_samples=1).squeeze(-1)
+
 class ModuleType(StrEnum):
     in_module = "in"
     out_module = "out"
@@ -1570,6 +1595,8 @@ class LLaDAModelLM(PreTrainedModel):
             self.model = LLaDAModel(model_config, init_params=init_params)
         else:
             self.model = model
+        
+        self.policy_net = BlockPolicyNet(config.d_model, config.max_sequence_length)
 
     def forward(
         self,
@@ -1607,6 +1634,18 @@ class LLaDAModelLM(PreTrainedModel):
         # import pdb; pdb.set_trace()
         logits = outputs.logits
         hidden_states = outputs.hidden_states
+
+        # Adaptive-dLLM: Calculate entropy and predict block size
+        if hidden_states is not None:
+            last_token_logits = logits[:, -1, :]
+            last_token_probs = torch.softmax(last_token_logits, dim=-1)
+            entropy = -torch.sum(last_token_probs * torch.log(last_token_probs + 1e-9), dim=-1, keepdim=True)
+            
+            # hidden_states is a tuple, take the last layer
+            last_hidden_state = hidden_states[-1][:, -1, :]
+            
+            # Predict
+            self.policy_net.predict(last_hidden_state, entropy)
 
         loss = None
         if labels is not None:
@@ -1659,6 +1698,33 @@ class LLaDAModelLM(PreTrainedModel):
     def tie_weights(self):
         if self.config.weight_tying:
             self.model.transformer.ff_out = self.model.transformer.wte
+
+    def compute_guidance_target(self, ar_logits, temperature=0.5):
+        # 1. Sharpen
+        if temperature > 0:
+            ar_logits = ar_logits / temperature
+        
+        # 2. Probabilities
+        probs = torch.softmax(ar_logits, dim=-1)
+        
+        # 3. Target: Expected Embedding (Top-K=50)
+        # We need the token embeddings.
+        # self.model.transformer.wte is the embedding layer
+        
+        topk_probs, topk_indices = torch.topk(probs, k=50, dim=-1) # (B, L, 50)
+        
+        # Re-normalize probs over Top-K
+        topk_probs = topk_probs / topk_probs.sum(dim=-1, keepdim=True)
+        
+        # Get embeddings: (B, L, 50, H)
+        # wte weight: (Vocab, H)
+        wte = self.model.transformer.wte.weight
+        topk_embeddings = F.embedding(topk_indices, wte) 
+        
+        # Expected Embedding: sum(p * E)
+        expected_embedding = torch.sum(topk_probs.unsqueeze(-1) * topk_embeddings, dim=-2)
+        
+        return expected_embedding
 
 # Register the model so that it is available for transformer pipelines, auto-loading, etc.
 AutoModel.register(LLaDAConfig, LLaDAModelLM)

@@ -78,9 +78,21 @@ class Dream(LM):
         use_cache: Optional[bool] = False,
         dual_cache: Optional[bool] = False,
         save_dir: Optional[str] = None,
+        mode: Optional[str] = 'turbo',
+        guidance_gamma: Optional[float] = 0.2,
         **kwargs,
     ) -> None:
         super().__init__()
+        
+        self.mode = mode
+        self.guidance_gamma = guidance_gamma
+        # Load AR Guidance Model if needed
+        self.ar_guidance_model = None
+        if self.mode == 'standard':
+            print("Loading AR Guidance Model (TinyLlama) for Dream...")
+            from transformers import AutoModelForCausalLM
+            self.ar_guidance_model = AutoModelForCausalLM.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0", torch_dtype=torch.float16, device_map="cuda")
+            self.ar_guidance_model.eval()
 
         # prepare for parallelism
         assert isinstance(device, str)
@@ -236,6 +248,7 @@ class Dream(LM):
             )
             .eval()
         ).to(self.device)
+        self.model.ar_guidance_model = self.ar_guidance_model # Attach guidance model
         self.model.diffusion_generate = types.MethodType(DreamGenerationMixin.diffusion_generate, self.model)
         self.model._sample = types.MethodType(DreamGenerationMixin._sample, self.model)
 
@@ -319,6 +332,8 @@ class Dream(LM):
             alg_temp=self.alg_temp,
             threshold=self.threshold,
             dual_cache=self.dual_cache,
+            ar_guidance_model=self.ar_guidance_model,
+            guidance_gamma=self.guidance_gamma
         )
 
         # decode
