@@ -77,7 +77,14 @@ def top_k_logits(logits, top_k=None):
     return logits
 
 
-def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confidence=False, neg_entropy=False):
+def sample_tokens(
+    logits,
+    temperature=0.0,
+    top_p=None,
+    top_k=None,
+    margin_confidence=False,
+    neg_entropy=False,
+):
 
     if temperature > 0:
         logits = logits / temperature
@@ -110,6 +117,21 @@ def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confid
         confidence = torch.sum(probs * log_probs, dim=-1)
     
     return confidence, x0
+
+
+def _apply_guidance_to_logits(
+    model,
+    logits: torch.Tensor,
+    hidden_states: torch.Tensor,
+    guidance_target: Optional[torch.Tensor],
+    guidance_gamma: float,
+) -> torch.Tensor:
+    if guidance_target is None or guidance_gamma == 0.0:
+        return logits
+    if guidance_target.dim() == 2:
+        guidance_target = guidance_target.unsqueeze(1)
+    guided_hidden = hidden_states - guidance_gamma * (guidance_target - hidden_states)
+    return model.lm_head(guided_hidden)
 
 
 @dataclass
@@ -373,6 +395,9 @@ class DreamGenerationMixin:
         threshold = kwargs.get("threshold", 0.9)
         block_length = kwargs.get("block_length", 32)
         dual_cache = kwargs.get("dual_cache", False)
+        ar_guidance_model = kwargs.get("ar_guidance_model", None)
+        guidance_temperature = kwargs.get("guidance_temperature", 0.5)
+        guidance_gamma = kwargs.get("guidance_gamma", 0.2)
 
         result = self._sample(
             input_ids,
@@ -380,7 +405,10 @@ class DreamGenerationMixin:
             generation_config=generation_config,
             threshold=threshold,
             block_length=block_length,
-            dual_cache=dual_cache
+            dual_cache=dual_cache,
+            ar_guidance_model=ar_guidance_model,
+            guidance_temperature=guidance_temperature,
+            guidance_gamma=guidance_gamma,
         )
         return result
 
@@ -392,6 +420,9 @@ class DreamGenerationMixin:
         threshold: Optional[float] = 0.9,
         block_length: Optional[int] = 32,
         dual_cache: bool = False,
+        ar_guidance_model=None,
+        guidance_temperature: float = 0.5,
+        guidance_gamma: float = 0.2,
     ) -> Union[DreamModelOutput, torch.LongTensor]:
         # init values
         
@@ -415,13 +446,6 @@ class DreamGenerationMixin:
         # Handle block configuration
         if block_length is None:
             block_length = gen_length  # Default: single block (original behavior)
-        
-        assert gen_length % block_length == 0, f"gen_length ({gen_length}) must be divisible by block_length ({block_length})"
-        num_blocks = gen_length // block_length
-        
-        assert steps % num_blocks == 0, f"steps ({steps}) must be divisible by num_blocks ({num_blocks})"
-        steps_per_block = steps // num_blocks
-        timesteps = torch.linspace(1, generation_config.eps, steps_per_block + 1, device=x.device)
 
         if attention_mask is not None and torch.any(attention_mask == 0.0):
             # we do not mask the [MASK] tokens so value = 1.0
@@ -441,18 +465,73 @@ class DreamGenerationMixin:
         # Initialize cache for the prompt
         past_key_values = None
 
+        current_len = 0
+        steps_remaining = steps
+
         # Process each block
-        for num_block in range(num_blocks):
-            
-            current_block_start = input_ids.shape[1] + num_block * block_length
-            current_block_end = current_block_start + block_length
+        while current_len < gen_length:
+            context_len = input_ids.shape[1] + current_len
+            context_ids = x[:, :context_len]
+            if attention_mask != "full" and isinstance(attention_mask, torch.Tensor):
+                context_attention_mask = attention_mask[:, :, :context_len, :context_len]
+            else:
+                context_attention_mask = attention_mask
+            context_tok_idx = tok_idx[:, :context_len] if tok_idx is not None else None
+            context_position_ids = torch.arange(context_len, device=x.device).unsqueeze(0)
+
+            policy_output = self(
+                context_ids,
+                context_attention_mask,
+                context_tok_idx,
+                output_hidden_states=True,
+                position_ids=context_position_ids,
+            )
+            last_hidden = policy_output.hidden_states[-1][:, -1, :]
+            last_logits = policy_output.logits[:, -1, :]
+            log_probs = torch.log_softmax(last_logits, dim=-1)
+            probs = log_probs.exp()
+            entropy = -(probs * log_probs).sum(-1)
+
+            if hasattr(self, "block_policy"):
+                block_len = self.block_policy.predict(last_hidden, entropy, deterministic=True)
+                if block_len.numel() > 1:
+                    block_len = block_len.max()
+                block_len = int(block_len.item())
+            else:
+                block_len = block_length
+            block_len = max(1, min(block_len, gen_length - current_len))
+
+            steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
+            steps_remaining = max(0, steps_remaining - steps_per_block)
+            timesteps = torch.linspace(1, generation_config.eps, steps_per_block + 1, device=x.device)
+
+            guidance_target = None
+            if ar_guidance_model is not None:
+                ar_logits = ar_guidance_model(context_ids).logits
+                guidance_target = self.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+
+            current_block_start = input_ids.shape[1] + current_len
+            current_block_end = current_block_start + block_len
 
             # update cache
-            model_output = self(x, attention_mask, tok_idx, use_cache=True)
+            full_position_ids = torch.arange(x.shape[1], device=x.device).unsqueeze(0)
+            model_output = self(
+                x,
+                attention_mask,
+                tok_idx,
+                use_cache=True,
+                position_ids=full_position_ids,
+                output_hidden_states=guidance_target is not None and guidance_gamma != 0.0,
+            )
             past_key_values = model_output.past_key_values
             logits = model_output.logits
+            if guidance_target is not None and guidance_gamma != 0.0:
+                hidden_states = model_output.hidden_states[-1]
+                logits = _apply_guidance_to_logits(self, logits, hidden_states, guidance_target, guidance_gamma)
             logits = torch.cat([logits[:,:1], logits[:, :-1]], dim=1)
-            confidence, x0 = sample_tokens(logits, temperature=temperature, top_p=top_p, top_k=top_k)
+            confidence, x0 = sample_tokens(
+                logits, temperature=temperature, top_p=top_p, top_k=top_k
+            )
             x[:, current_block_start] = x0[:, current_block_start]
             
             # Extract only previous block cache
@@ -481,21 +560,38 @@ class DreamGenerationMixin:
                     current_attention_mask = attention_mask[:, :, :, current_block_start:]
                 else:
                     current_attention_mask = attention_mask
-                
+
                 if dual_cache:
-                    model_output = self(x[:, current_block_start:current_block_end], current_attention_mask, 
-                                    tok_idx[:, current_block_start:current_block_end] if tok_idx is not None else None, 
-                                    past_key_values=past_key_values, use_cache=True, dual_cache=dual_cache, replace_position=replace_position)
+                    block_position_ids = torch.arange(current_block_start, current_block_end, device=x.device).unsqueeze(0)
+                    model_output = self(
+                        x[:, current_block_start:current_block_end], current_attention_mask, 
+                        tok_idx[:, current_block_start:current_block_end] if tok_idx is not None else None, 
+                        past_key_values=past_key_values, use_cache=True, dual_cache=dual_cache,
+                        replace_position=replace_position, position_ids=block_position_ids,
+                        output_hidden_states=guidance_target is not None and guidance_gamma != 0.0,
+                    )
                 else:
-                    model_output = self(x[:, current_block_start:], current_attention_mask, 
-                                    tok_idx[:, current_block_start:] if tok_idx is not None else None, 
-                                    past_key_values=past_key_values, use_cache=True)
+                    suffix_len = x[:, current_block_start:].shape[1]
+                    block_position_ids = torch.arange(
+                        current_block_start, current_block_start + suffix_len, device=x.device
+                    ).unsqueeze(0)
+                    model_output = self(
+                        x[:, current_block_start:], current_attention_mask, 
+                        tok_idx[:, current_block_start:] if tok_idx is not None else None, 
+                        past_key_values=past_key_values, use_cache=True, position_ids=block_position_ids,
+                        output_hidden_states=guidance_target is not None and guidance_gamma != 0.0,
+                    )
                 logits = model_output.logits
+                if guidance_target is not None and guidance_gamma != 0.0:
+                    hidden_states = model_output.hidden_states[-1]
+                    logits = _apply_guidance_to_logits(self, logits, hidden_states, guidance_target, guidance_gamma)
                 logits = torch.cat([logits[:,:1], logits[:, :-1]], dim=1)
                 if alg == 'confidence_threshold':
                     mask_logits = logits[mask_index]
                 
-                    confidence, x0 = sample_tokens(mask_logits, temperature=temperature, top_p=top_p, top_k=top_k)
+                    confidence, x0 = sample_tokens(
+                        mask_logits, temperature=temperature, top_p=top_p, top_k=top_k
+                    )
                     
                     if dual_cache:
                         x_ = torch.zeros_like(x[:, current_block_start:current_block_end], device=self.device, dtype=torch.long) + mask_token_id
@@ -506,7 +602,7 @@ class DreamGenerationMixin:
                     
                     x_[mask_index] = x0.clone()
                     full_confidence[mask_index] = confidence
-                    full_confidence[:, block_length:] = -torch.inf
+                    full_confidence[:, block_len:] = -torch.inf
                     
                     current_transfer_tokens = (x[:, current_block_start:current_block_end] == mask_token_id).sum()
                     
@@ -527,9 +623,11 @@ class DreamGenerationMixin:
                         break
                     t = timesteps[i]
                     s = timesteps[i + 1]
-                    mask_index[:, block_length:] = False
+                    mask_index[:, block_len:] = False
                     mask_logits = logits[mask_index]
-                    confidence, x0 = sample_tokens(mask_logits, temperature, top_p=top_p, top_k=top_k, neg_entropy=True)
+                    confidence, x0 = sample_tokens(
+                        mask_logits, temperature, top_p=top_p, top_k=top_k, neg_entropy=True
+                    )
                     num_mask_token = mask_index.sum() / mask_index.shape[0]
                     number_transfer_tokens = int(num_mask_token * (1 - s / t)) if i < steps_per_block - 1 else int(num_mask_token)
                     if dual_cache:
@@ -537,7 +635,7 @@ class DreamGenerationMixin:
                     else:
                         full_confidence = torch.full_like(x[:, current_block_start:], -torch.inf, device=self.device, dtype=logits.dtype)
                     full_confidence[mask_index] = confidence
-                    full_confidence[:, block_length:] = -torch.inf
+                    full_confidence[:, block_len:] = -torch.inf
                     
                     if number_transfer_tokens > 0:
                         if alg_temp is None or alg_temp == 0:
@@ -560,6 +658,8 @@ class DreamGenerationMixin:
 
                 if (x[:, current_block_start:current_block_end] == mask_token_id).sum() == 0:
                     break
+
+            current_len += block_len
 
         
         if return_dict_in_generate:

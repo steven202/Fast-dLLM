@@ -32,7 +32,7 @@ from lm_eval.api.model import LM
 from lm_eval.api.registry import register_model
 from tqdm import tqdm
 import os
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import AutoTokenizer, AutoModel, AutoConfig, AutoModelForCausalLM
 from generate import generate, generate_with_prefix_cache, generate_with_dual_cache
 from model.modeling_llada import LLaDAModelLM
 import json
@@ -67,6 +67,9 @@ class LLaDAEvalHarness(LM):
         save_dir=None,
         show_speed=False,
         dual_cache=False,
+        mode: str = "turbo",
+        guidance_gamma: float = 0.2,
+        temperature: float = 0.5,
         **kwargs,
     ):
         '''
@@ -132,6 +135,25 @@ class LLaDAEvalHarness(LM):
         self.save_dir = save_dir
         self.show_speed = show_speed
         self.dual_cache = dual_cache
+        self.mode = mode
+        self.guidance_gamma = guidance_gamma
+        self.guidance_temperature = temperature
+        self.ar_guidance_model = None
+        if self.mode not in ("turbo", "standard"):
+            raise ValueError(f"Unknown mode: {self.mode}")
+        if self.mode == "standard":
+            ar_model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+            ar_kwargs = {}
+            if self.accelerator is not None:
+                ar_kwargs.update({'device_map': {'': f'{self.accelerator.device}'}})
+            self.ar_guidance_model = AutoModelForCausalLM.from_pretrained(
+                ar_model_id,
+                torch_dtype=torch.bfloat16,
+                **ar_kwargs,
+            )
+            self.ar_guidance_model.eval()
+            if self.accelerator is None:
+                self.ar_guidance_model = self.ar_guidance_model.to(self.device)
     @property
     def rank(self):
         return self._rank
@@ -339,13 +361,22 @@ class LLaDAEvalHarness(LM):
             if self.use_cache:
                 if self.dual_cache:
                     generated_answer, nfe = generate_with_dual_cache(self.model, input_ids, steps=self.steps, gen_length=self.gen_length, block_length=self.block_length, 
-                                        temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor)
+                                        temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor,
+                                        ar_guidance_model=self.ar_guidance_model if self.mode == "standard" else None,
+                                        guidance_gamma=self.guidance_gamma,
+                                        guidance_temperature=self.guidance_temperature)
                 else:
                     generated_answer, nfe = generate_with_prefix_cache(self.model, input_ids, steps=self.steps, gen_length=self.gen_length, block_length=self.block_length, 
-                                        temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor)
+                                        temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor,
+                                        ar_guidance_model=self.ar_guidance_model if self.mode == "standard" else None,
+                                        guidance_gamma=self.guidance_gamma,
+                                        guidance_temperature=self.guidance_temperature)
             else:
                 generated_answer, nfe = generate(self.model, input_ids, steps=self.steps, gen_length=self.gen_length, block_length=self.block_length, 
-                                        temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor)
+                                        temperature=0, remasking=self.remasking, mask_id=self.mask_id, threshold=self.threshold, factor=self.factor,
+                                        ar_guidance_model=self.ar_guidance_model if self.mode == "standard" else None,
+                                        guidance_gamma=self.guidance_gamma,
+                                        guidance_temperature=self.guidance_temperature)
 
             if self.is_instruct and 'task_id' in req.doc and str(req.doc['task_id']).lower().startswith('humaneval'):
                 generated_answer_ids = generated_answer[:, input_ids.shape[1]:]

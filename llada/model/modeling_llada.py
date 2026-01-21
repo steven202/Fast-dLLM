@@ -85,6 +85,7 @@ __all__ = [
     "LLaDAModel",
     "LLaDAOutput",
     "LLaDAGenerateOutput",
+    "BlockPolicyNet",
 ]
 
 
@@ -1130,6 +1131,31 @@ class LLaDAOutput(NamedTuple):
     """
 
 
+class BlockPolicyNet(nn.Module):
+    def __init__(self, dim: int, max_len: int):
+        super().__init__()
+        self.fc1 = nn.Linear(dim + 1, 256)
+        self.fc2 = nn.Linear(256, max_len)
+        self.act = nn.ReLU()
+        self.softmax = nn.Softmax(dim=-1)
+
+    def predict(
+        self,
+        hidden_states: torch.Tensor,
+        entropy: torch.Tensor,
+        deterministic: bool = True,
+    ) -> torch.Tensor:
+        if hidden_states.dim() == 3:
+            hidden_states = hidden_states[:, -1, :]
+        entropy = entropy.view(entropy.size(0), 1)
+        x = torch.cat([hidden_states, entropy], dim=-1)
+        logits = self.fc2(self.act(self.fc1(x)))
+        probs = self.softmax(logits)
+        if deterministic:
+            return torch.argmax(probs, dim=-1)
+        return torch.multinomial(probs, num_samples=1).squeeze(-1)
+
+
 class LLaDAGenerateOutput(NamedTuple):
     token_ids: torch.LongTensor
     """
@@ -1204,6 +1230,7 @@ class LLaDAModel(nn.Module):
         super().__init__()
         self.config = config
         self.__cache = BufferCache()
+        self.block_policy = BlockPolicyNet(config.d_model, config.max_sequence_length)
 
         # Validate config.
         if self.config.alibi and self.config.flash_attention:
@@ -1535,6 +1562,15 @@ class LLaDAModel(nn.Module):
         if self.config.scale_logits:
             logits.mul_(1 / math.sqrt(self.config.d_model))
 
+        last_token_logits = logits[:, -1, :]
+        log_probs = torch.log_softmax(last_token_logits, dim=-1)
+        probs = log_probs.exp()
+        last_token_entropy = -(probs * log_probs).sum(-1)
+        last_hidden_state = x[:, -1, :]
+        self._last_block_policy = self.block_policy.predict(
+            last_hidden_state, last_token_entropy, deterministic=True
+        )
+
         return LLaDAOutput(logits=logits, attn_key_values=attn_key_values, hidden_states=tuple(all_hidden_states) if output_hidden_states else None)  # type: ignore[arg-type]
 
 
@@ -1659,6 +1695,17 @@ class LLaDAModelLM(PreTrainedModel):
     def tie_weights(self):
         if self.config.weight_tying:
             self.model.transformer.ff_out = self.model.transformer.wte
+
+    def compute_guidance_target(self, ar_logits: torch.Tensor, temperature: float = 0.5) -> torch.Tensor:
+        if ar_logits.dim() == 3:
+            ar_logits = ar_logits[:, -1, :]
+        logits = ar_logits / max(temperature, 1e-6)
+        probs = torch.softmax(logits, dim=-1)
+        top_k = min(50, probs.shape[-1])
+        topk_probs, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+        topk_probs = topk_probs / topk_probs.sum(dim=-1, keepdim=True)
+        embeddings = self.get_input_embeddings().weight
+        return (topk_probs.unsqueeze(-1) * embeddings[topk_idx]).sum(dim=1)
 
 # Register the model so that it is available for transformer pipelines, auto-loading, etc.
 AutoModel.register(LLaDAConfig, LLaDAModelLM)

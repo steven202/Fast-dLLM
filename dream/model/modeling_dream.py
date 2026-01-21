@@ -237,6 +237,31 @@ class DreamMLP(nn.Module):
         return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
 
 
+class BlockPolicyNet(nn.Module):
+    def __init__(self, dim: int, max_len: int):
+        super().__init__()
+        self.fc1 = nn.Linear(dim + 1, 256)
+        self.fc2 = nn.Linear(256, max_len)
+        self.act = nn.ReLU()
+        self.softmax = nn.Softmax(dim=-1)
+
+    def predict(
+        self,
+        hidden_states: torch.Tensor,
+        entropy: torch.Tensor,
+        deterministic: bool = True,
+    ) -> torch.Tensor:
+        if hidden_states.dim() == 3:
+            hidden_states = hidden_states[:, -1, :]
+        entropy = entropy.view(entropy.size(0), 1)
+        x = torch.cat([hidden_states, entropy], dim=-1)
+        logits = self.fc2(self.act(self.fc1(x)))
+        probs = self.softmax(logits)
+        if deterministic:
+            return torch.argmax(probs, dim=-1)
+        return torch.multinomial(probs, num_samples=1).squeeze(-1)
+
+
 # Copied from transformers.models.llama.modeling_llama.repeat_kv
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     """
@@ -796,6 +821,7 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
         self.model = DreamBaseModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.block_policy = BlockPolicyNet(config.hidden_size, config.max_position_embeddings)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -822,6 +848,17 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
 
     def get_decoder(self):
         return self.model
+
+    def compute_guidance_target(self, ar_logits: torch.Tensor, temperature: float = 0.5) -> torch.Tensor:
+        if ar_logits.dim() == 3:
+            ar_logits = ar_logits[:, -1, :]
+        logits = ar_logits / max(temperature, 1e-6)
+        probs = torch.softmax(logits, dim=-1)
+        top_k = min(50, probs.shape[-1])
+        topk_probs, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+        topk_probs = topk_probs / topk_probs.sum(dim=-1, keepdim=True)
+        embeddings = self.get_input_embeddings().weight
+        return (topk_probs.unsqueeze(-1) * embeddings[topk_idx]).sum(dim=1)
 
     def forward(
         self,
@@ -865,6 +902,15 @@ class DreamModel(DreamGenerationMixin, DreamPreTrainedModel):
         hidden_states = outputs[0]
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
         logits = self.lm_head(hidden_states[:, -num_logits_to_keep:, :])
+
+        last_token_logits = logits[:, -1, :]
+        log_probs = torch.log_softmax(last_token_logits, dim=-1)
+        probs = log_probs.exp()
+        last_token_entropy = -(probs * log_probs).sum(-1)
+        last_hidden_state = hidden_states[:, -1, :]
+        self._last_block_policy = self.block_policy.predict(
+            last_hidden_state, last_token_entropy, deterministic=True
+        )
 
         loss = None
         if labels is not None:

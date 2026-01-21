@@ -94,6 +94,21 @@ def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confid
     return confidence, x0
 
 
+def _apply_guidance_to_logits(
+    model,
+    logits: torch.Tensor,
+    hidden_states: torch.Tensor,
+    guidance_target: Optional[torch.Tensor],
+    guidance_gamma: float,
+) -> torch.Tensor:
+    if guidance_target is None or guidance_gamma == 0.0:
+        return logits
+    if guidance_target.dim() == 2:
+        guidance_target = guidance_target.unsqueeze(1)
+    guided_hidden = hidden_states - guidance_gamma * (guidance_target - hidden_states)
+    return model.lm_head(guided_hidden)
+
+
 @dataclass
 class DreamModelOutput(ModelOutput):
     sequences: torch.LongTensor = None
@@ -355,6 +370,9 @@ class DreamGenerationMixin:
             attention_mask=attention_mask 
         )
         threshold = kwargs.get("threshold", 0.9)
+        ar_guidance_model = kwargs.get("ar_guidance_model", None)
+        guidance_temperature = kwargs.get("guidance_temperature", 0.5)
+        guidance_gamma = kwargs.get("guidance_gamma", 0.2)
 
         result = self._sample(
             input_ids,
@@ -362,7 +380,10 @@ class DreamGenerationMixin:
             generation_config=generation_config,
             generation_tokens_hook_func=generation_tokens_hook_func,
             generation_logits_hook_func=generation_logits_hook_func,
-            threshold=threshold
+            threshold=threshold,
+            ar_guidance_model=ar_guidance_model,
+            guidance_temperature=guidance_temperature,
+            guidance_gamma=guidance_gamma,
         )
         return result
 
@@ -373,7 +394,10 @@ class DreamGenerationMixin:
         generation_config: DreamGenerationConfig,
         generation_tokens_hook_func,
         generation_logits_hook_func,
-        threshold: Optional[float] = 0.9
+        threshold: Optional[float] = 0.9,
+        ar_guidance_model=None,
+        guidance_temperature: float = 0.5,
+        guidance_gamma: float = 0.2,
     ) -> Union[DreamModelOutput, torch.LongTensor]:
         # init values
         output_history = generation_config.output_history
@@ -408,6 +432,11 @@ class DreamGenerationMixin:
             tok_idx = None
             attention_mask = "full"
 
+        guidance_target = None
+        if ar_guidance_model is not None:
+            ar_logits = ar_guidance_model(input_ids).logits
+            guidance_target = self.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+
         timesteps = torch.linspace(1, eps, steps + 1, device=x.device)
 
         # this allows user-defined token control of the intermediate steps
@@ -422,7 +451,16 @@ class DreamGenerationMixin:
             left_tokens_last_step = 0
         while i < steps:
             mask_index = (x == mask_token_id)
-            logits = self(x, attention_mask, tok_idx).logits
+            outputs = self(
+                x,
+                attention_mask,
+                tok_idx,
+                output_hidden_states=guidance_target is not None and guidance_gamma != 0.0,
+            )
+            logits = outputs.logits
+            if guidance_target is not None and guidance_gamma != 0.0:
+                hidden_states = outputs.hidden_states[-1]
+                logits = _apply_guidance_to_logits(self, logits, hidden_states, guidance_target, guidance_gamma)
             logits = torch.cat([logits[:,:1], logits[:, :-1]], dim=1)
 
             # this allows user-defined logits control of the intermediate steps

@@ -67,7 +67,7 @@ class Dream(LM):
         trust_remote_code: Optional[bool] = True,
         parallelize: Optional[bool] = False,
         autogptq: Optional[Union[bool, str]] = False,
-        temperature: Optional[float] = 0.0,
+        temperature: Optional[float] = 0.5,
         top_p: Optional[float] = None,
         top_k: Optional[float] = None,
         alg: Optional[str] = "entropy",
@@ -78,6 +78,8 @@ class Dream(LM):
         use_cache: Optional[bool] = False,
         dual_cache: Optional[bool] = False,
         save_dir: Optional[str] = None,
+        mode: Optional[str] = "turbo",
+        guidance_gamma: Optional[float] = 0.2,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -137,6 +139,9 @@ class Dream(LM):
         self.batch_size_per_gpu = batch_size
         if isinstance(batch_size, str):
             self.batch_size_per_gpu = int(batch_size)
+        self.mode = mode
+        self.guidance_gamma = guidance_gamma
+        self.ar_guidance_model = None
         self._create_model_and_tokenizer(pretrained, dtype, trust_remote_code)
 
         if isinstance(pretrained, str):
@@ -239,6 +244,16 @@ class Dream(LM):
         self.model.diffusion_generate = types.MethodType(DreamGenerationMixin.diffusion_generate, self.model)
         self.model._sample = types.MethodType(DreamGenerationMixin._sample, self.model)
 
+        if self.mode not in ("turbo", "standard"):
+            raise ValueError(f"Unknown mode: {self.mode}")
+        if self.mode == "standard":
+            ar_model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+            self.ar_guidance_model = transformers.AutoModelForCausalLM.from_pretrained(
+                ar_model_id,
+                torch_dtype=get_dtype(dtype),
+                trust_remote_code=trust_remote_code,
+            ).eval().to(self.device)
+
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             pretrained, trust_remote_code=trust_remote_code
         )
@@ -319,6 +334,9 @@ class Dream(LM):
             alg_temp=self.alg_temp,
             threshold=self.threshold,
             dual_cache=self.dual_cache,
+            ar_guidance_model=self.ar_guidance_model if self.mode == "standard" else None,
+            guidance_temperature=self.temperature,
+            guidance_gamma=self.guidance_gamma,
         )
 
         # decode

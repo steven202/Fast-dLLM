@@ -19,6 +19,8 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import os
+import math
+from typing import Optional
 from transformers import AutoTokenizer, AutoModel
 from model.modeling_llada import LLaDAModelLM
 
@@ -36,6 +38,50 @@ def add_gumbel_noise(logits, temperature):
     noise = torch.rand_like(logits, dtype=torch.float64)
     gumbel_noise = (- torch.log(noise)) ** temperature
     return logits.exp() / gumbel_noise
+
+
+def _logits_from_hidden(model: LLaDAModelLM, hidden_states: torch.Tensor) -> torch.Tensor:
+    if model.model.config.weight_tying:
+        logits = F.linear(hidden_states, model.model.transformer.wte.weight, None)
+    else:
+        logits = model.model.transformer.ff_out(hidden_states)
+    if model.model.config.scale_logits:
+        logits = logits * (1 / math.sqrt(model.model.config.d_model))
+    return logits
+
+
+def _apply_guidance_to_logits(
+    model: LLaDAModelLM,
+    logits: torch.Tensor,
+    hidden_states: torch.Tensor,
+    guidance_target: Optional[torch.Tensor],
+    guidance_gamma: float,
+) -> torch.Tensor:
+    if guidance_target is None or guidance_gamma == 0.0:
+        return logits
+    if guidance_target.dim() == 2:
+        guidance_target = guidance_target.unsqueeze(1)
+    guided_hidden = hidden_states - guidance_gamma * (guidance_target - hidden_states)
+    return _logits_from_hidden(model, guided_hidden)
+
+
+def _predict_block_len(
+    model,
+    context_ids: torch.Tensor,
+    default_block_length: int,
+) -> int:
+    if not (hasattr(model, "model") and hasattr(model.model, "block_policy")):
+        return default_block_length
+    outputs = model(context_ids, output_hidden_states=True)
+    last_hidden = outputs.hidden_states[-1][:, -1, :]
+    last_logits = outputs.logits[:, -1, :]
+    log_probs = torch.log_softmax(last_logits, dim=-1)
+    probs = log_probs.exp()
+    entropy = -(probs * log_probs).sum(-1)
+    block_len = model.model.block_policy.predict(last_hidden, entropy, deterministic=True)
+    if block_len.numel() > 1:
+        block_len = block_len.max()
+    return int(block_len.item())
 
 
 # def get_num_transfer_tokens(mask_index, steps):
@@ -84,7 +130,8 @@ def get_num_transfer_tokens(block_mask_index: torch.Tensor, steps: int) -> torch
 
 @ torch.no_grad()
 def generate(model, prompt, steps=128, gen_length=128, block_length=128, temperature=0.,
-             remasking='low_confidence', mask_id=126336, threshold=None, factor=None):
+             remasking='low_confidence', mask_id=126336, threshold=None, factor=None,
+             ar_guidance_model=None, guidance_temperature: float = 0.5, guidance_gamma: float = 0.2):
     '''
     Args:
         model: Mask predictor.
@@ -100,37 +147,62 @@ def generate(model, prompt, steps=128, gen_length=128, block_length=128, tempera
     x = torch.full((prompt.shape[0], prompt.shape[1] + gen_length), mask_id, dtype=torch.long).to(model.device)
     x[:, :prompt.shape[1]] = prompt.clone()
 
-    assert gen_length % block_length == 0
-    num_blocks = gen_length // block_length
-
-    assert steps % num_blocks == 0
-    steps = steps // num_blocks
-
     nfe = 0
-    for num_block in range(num_blocks):
-        block_mask_index = (x[:, prompt.shape[1] + num_block * block_length: prompt.shape[1] + (num_block + 1) * block_length] == mask_id)
-        num_transfer_tokens = get_num_transfer_tokens(block_mask_index, steps)
+    current_len = 0
+    steps_remaining = steps
+    while current_len < gen_length:
+        context_len = prompt.shape[1] + current_len
+        context_ids = x[:, :context_len]
+        block_len = _predict_block_len(model, context_ids, block_length)
+        block_len = min(block_len, gen_length - current_len)
+
+        steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
+        steps_remaining = max(0, steps_remaining - steps_per_block)
+
+        guidance_target = None
+        if ar_guidance_model is not None:
+            ar_logits = ar_guidance_model(context_ids).logits
+            guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+
+        block_start = prompt.shape[1] + current_len
+        block_end = block_start + block_len
+        block_mask_index = (x[:, block_start:block_end] == mask_id)
+        num_transfer_tokens = get_num_transfer_tokens(block_mask_index, steps_per_block)
+
         i = 0
         while True:
+            if i >= steps_per_block:
+                break
             nfe += 1
             mask_index = (x == mask_id)
-            logits = model(x).logits
-            mask_index[:, prompt.shape[1] + (num_block + 1) * block_length:] = 0
+            outputs = model(x, output_hidden_states=guidance_target is not None and guidance_gamma != 0.0)
+            logits = outputs.logits
+            if guidance_target is not None and guidance_gamma != 0.0:
+                hidden_states = outputs.hidden_states[-1]
+                logits = _apply_guidance_to_logits(model, logits, hidden_states, guidance_target, guidance_gamma)
+            mask_index[:, block_end:] = 0
             if factor is None:
-                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index, x, num_transfer_tokens[:, i] if threshold is None else None, threshold)
+                x0, transfer_index = get_transfer_index(
+                    logits, temperature, remasking, mask_index, x,
+                    num_transfer_tokens[:, i] if threshold is None else None, threshold,
+                )
             else:
-                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index, x, None, factor)
+                x0, transfer_index = get_transfer_index_dynamic(
+                    logits, temperature, remasking, mask_index, x, None, factor,
+                )
             x[transfer_index] = x0[transfer_index]
             i += 1
-            if (x[:, prompt.shape[1] + num_block * block_length: prompt.shape[1] + (num_block + 1) * block_length] == mask_id).sum() == 0:
+            if (x[:, block_start:block_end] == mask_id).sum() == 0:
                 break
+        current_len += block_len
     return x, nfe
 
 
 
 @ torch.no_grad()
 def generate_with_prefix_cache(model, prompt, steps=128, gen_length=128, block_length=128, temperature=0.,
-             remasking='low_confidence', mask_id=126336, threshold=None, factor=None):
+             remasking='low_confidence', mask_id=126336, threshold=None, factor=None,
+             ar_guidance_model=None, guidance_temperature: float = 0.5, guidance_gamma: float = 0.2):
     '''
     Args:
         model: Mask predictor.
@@ -146,30 +218,48 @@ def generate_with_prefix_cache(model, prompt, steps=128, gen_length=128, block_l
     x = torch.full((prompt.shape[0], prompt.shape[1] + gen_length), mask_id, dtype=torch.long).to(model.device)
     x[:, :prompt.shape[1]] = prompt.clone()
 
-    assert gen_length % block_length == 0
-    num_blocks = gen_length // block_length
-
-    assert steps % num_blocks == 0
-    steps = steps // num_blocks
-
     nfe = 0
+    current_len = 0
+    steps_remaining = steps
             
-    for num_block in range(num_blocks):
-        current_block_start = prompt.shape[1] + num_block * block_length
-        current_block_end = current_block_start + block_length
+    while current_len < gen_length:
+        context_len = prompt.shape[1] + current_len
+        context_ids = x[:, :context_len]
+        block_len = _predict_block_len(model, context_ids, block_length)
+        block_len = min(block_len, gen_length - current_len)
+
+        steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
+        steps_remaining = max(0, steps_remaining - steps_per_block)
+
+        guidance_target = None
+        if ar_guidance_model is not None:
+            ar_logits = ar_guidance_model(context_ids).logits
+            guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+
+        current_block_start = prompt.shape[1] + current_len
+        current_block_end = current_block_start + block_len
 
         block_mask_index = (x[:, current_block_start:current_block_end] == mask_id)
-        num_transfer_tokens = get_num_transfer_tokens(block_mask_index, steps)
+        num_transfer_tokens = get_num_transfer_tokens(block_mask_index, steps_per_block)
 
-        output = model(x, use_cache=True)
+        output = model(x, use_cache=True, output_hidden_states=guidance_target is not None and guidance_gamma != 0.0)
         past_key_values = output.past_key_values
 
         mask_index = (x == mask_id)
         mask_index[:, current_block_end:] = 0
+        logits = output.logits
+        if guidance_target is not None and guidance_gamma != 0.0:
+            hidden_states = output.hidden_states[-1]
+            logits = _apply_guidance_to_logits(model, logits, hidden_states, guidance_target, guidance_gamma)
         if factor is None:
-            x0, transfer_index = get_transfer_index(output.logits, temperature, remasking, mask_index, x, num_transfer_tokens[:, 0] if threshold is None else None, threshold)
+            x0, transfer_index = get_transfer_index(
+                logits, temperature, remasking, mask_index, x,
+                num_transfer_tokens[:, 0] if threshold is None else None, threshold,
+            )
         else:
-            x0, transfer_index = get_transfer_index_dynamic(output.logits, temperature, remasking, mask_index, x, None, factor)
+            x0, transfer_index = get_transfer_index_dynamic(
+                logits, temperature, remasking, mask_index, x, None, factor,
+            )
         x[transfer_index] = x0[transfer_index]
 
         new_past_key_values = []
@@ -183,59 +273,81 @@ def generate_with_prefix_cache(model, prompt, steps=128, gen_length=128, block_l
         
         i = 1
         while True:
-            if (x[:, current_block_start:current_block_end] == mask_id).sum() == 0:
+            if i >= steps_per_block or (x[:, current_block_start:current_block_end] == mask_id).sum() == 0:
                 break
             nfe += 1
             mask_index = (x[:, current_block_start:] == mask_id)
-            mask_index[:, block_length:] = 0
+            mask_index[:, block_len:] = 0
 
-            logits = model(x[:, current_block_start:], past_key_values=past_key_values, use_cache=True).logits
+            outputs = model(
+                x[:, current_block_start:], past_key_values=past_key_values, use_cache=True,
+                output_hidden_states=guidance_target is not None and guidance_gamma != 0.0,
+            )
+            logits = outputs.logits
+            if guidance_target is not None and guidance_gamma != 0.0:
+                hidden_states = outputs.hidden_states[-1]
+                logits = _apply_guidance_to_logits(model, logits, hidden_states, guidance_target, guidance_gamma)
 
             logits_with_noise = add_gumbel_noise(logits, temperature=temperature)
             x0 = torch.argmax(logits_with_noise, dim=-1) # b, l
 
             if factor is None:
-                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index, 
-                                                x[:, current_block_start:], num_transfer_tokens[:, i] if threshold is None else None, threshold)
+                x0, transfer_index = get_transfer_index(
+                    logits, temperature, remasking, mask_index, 
+                    x[:, current_block_start:], num_transfer_tokens[:, i] if threshold is None else None, threshold,
+                )
             else:
-                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index, 
-                                                x[:, current_block_start:], None, factor)
+                x0, transfer_index = get_transfer_index_dynamic(
+                    logits, temperature, remasking, mask_index, 
+                    x[:, current_block_start:], None, factor,
+                )
             x[:, current_block_start:][transfer_index] = x0[transfer_index]
             
             i += 1
 
+        current_len += block_len
 
     return x, nfe
 
 @torch.no_grad()
 def generate_with_dual_cache(
     model, prompt, steps=128, gen_length=128, block_length=128, temperature=0.,
-    remasking="low_confidence", mask_id=126336, threshold=None, factor=None
+    remasking="low_confidence", mask_id=126336, threshold=None, factor=None,
+    ar_guidance_model=None, guidance_temperature: float = 0.5, guidance_gamma: float = 0.2
 ):
     B = prompt.shape[0]
     Lp = int(prompt.shape[1])  # Python int, not Tensor
-    assert gen_length % block_length == 0
-    num_blocks = gen_length // block_length
-
-    assert steps % num_blocks == 0
-    steps_per_block = steps // num_blocks
-
     # x: (B, Lp + gen_length)
     x = torch.full((B, Lp + gen_length), mask_id, dtype=torch.long, device=model.device)
     x[:, :Lp] = prompt
 
     nfe = 0
+    current_len = 0
+    steps_remaining = steps
 
-    for nb in range(num_blocks):
-        s = Lp + nb * block_length
-        e = s + block_length
+    while current_len < gen_length:
+        context_len = Lp + current_len
+        context_ids = x[:, :context_len]
+        block_len = _predict_block_len(model, context_ids, block_length)
+        block_len = min(block_len, gen_length - current_len)
+
+        steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
+        steps_remaining = max(0, steps_remaining - steps_per_block)
+
+        guidance_target = None
+        if ar_guidance_model is not None:
+            ar_logits = ar_guidance_model(context_ids).logits
+            guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+
+        s = Lp + current_len
+        e = s + block_len
 
         # Masks/indices for the current block
-        block_mask_index = (x[:, s:e] == mask_id)  # (B, block_length)
+        block_mask_index = (x[:, s:e] == mask_id)  # (B, block_len)
         num_transfer_tokens = get_num_transfer_tokens(block_mask_index, steps_per_block)  # (B, steps_per_block)
 
         # 1) Warm KV-cache on the full prefix once per block
-        out_full = model(x, use_cache=True)
+        out_full = model(x, use_cache=True, output_hidden_states=guidance_target is not None and guidance_gamma != 0.0)
         past_key_values = out_full.past_key_values
         nfe += 1
 
@@ -248,14 +360,18 @@ def generate_with_dual_cache(
         # Do not touch beyond current block in this phase
         global_mask_index[:, e:] = False
 
+        logits = out_full.logits
+        if guidance_target is not None and guidance_gamma != 0.0:
+            hidden_states = out_full.hidden_states[-1]
+            logits = _apply_guidance_to_logits(model, logits, hidden_states, guidance_target, guidance_gamma)
         if factor is None:
             quota0 = None if threshold is not None else num_transfer_tokens[:, 0]  # (B,)
             x0, transfer_index = get_transfer_index(
-                out_full.logits, temperature, remasking, global_mask_index, x, quota0, threshold
+                logits, temperature, remasking, global_mask_index, x, quota0, threshold,
             )
         else:
             x0, transfer_index = get_transfer_index_dynamic(
-                out_full.logits, temperature, remasking, global_mask_index, x, None, factor
+                logits, temperature, remasking, global_mask_index, x, None, factor,
             )
 
         # In-place update via torch.where (no tensor-slice assignment with mask)
@@ -267,21 +383,26 @@ def generate_with_dual_cache(
             # Evaluate logits only for current block with cache
             if (x[:, s:e] == mask_id).sum() == 0:
                 break
-            logits_blk = model(
-                x[:, s:e], past_key_values=past_key_values, use_cache=True, replace_position=replace_position
-            ).logits  # shape expected by get_transfer_index*
+            outputs = model(
+                x[:, s:e], past_key_values=past_key_values, use_cache=True, replace_position=replace_position,
+                output_hidden_states=guidance_target is not None and guidance_gamma != 0.0,
+            )
+            logits_blk = outputs.logits  # shape expected by get_transfer_index*
+            if guidance_target is not None and guidance_gamma != 0.0:
+                hidden_states = outputs.hidden_states[-1]
+                logits_blk = _apply_guidance_to_logits(model, logits_blk, hidden_states, guidance_target, guidance_gamma)
 
             # Mask and quota for this step (all tensor ops)
-            mask_blk = (x[:, s:e] == mask_id)  # (B, block_length)
+            mask_blk = (x[:, s:e] == mask_id)  # (B, block_len)
 
             if factor is None:
                 quota_i = None if threshold is not None else num_transfer_tokens[:, i]  # (B,)
                 x0_blk, transfer_idx_blk = get_transfer_index(
-                    logits_blk, temperature, remasking, mask_blk, x[:, s:e], quota_i, threshold
+                    logits_blk, temperature, remasking, mask_blk, x[:, s:e], quota_i, threshold,
                 )
             else:
                 x0_blk, transfer_idx_blk = get_transfer_index_dynamic(
-                    logits_blk, temperature, remasking, mask_blk, x[:, s:e], None, factor
+                    logits_blk, temperature, remasking, mask_blk, x[:, s:e], None, factor,
                 )
 
             # Merge back into x[:, s:e] using torch.where (no masked slice assignment)
@@ -290,6 +411,8 @@ def generate_with_dual_cache(
             x = torch.cat([x[:, :s], blk_new, x[:, e:]], dim=1)  # static concatenation
 
             nfe += 1
+
+        current_len += block_len
 
     return x, nfe
 
