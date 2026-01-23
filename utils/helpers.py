@@ -3,6 +3,7 @@ DELA: Diffusion Editing Language Agent
 工具函数
 """
 
+import argparse
 import torch
 import random
 import numpy as np
@@ -58,3 +59,12 @@ def format_number(n: int) -> str:
         return f"{n/1e3:.2f}K"
     else:
         return str(n)
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "1"):
+        return True
+    if v.lower() in ("no", "false", "f", "0"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
