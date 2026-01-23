@@ -9,6 +9,8 @@ import argparse
 import os
 import math
 import time
+import sys
+import datetime
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -17,11 +19,11 @@ import torch.nn.functional as F
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from utils.helpers import set_seed
+from utils.helpers import set_seed, str2bool
 
 from llada.model.modeling_llada import LLaDAModelLM
 from dream.model.modeling_dream import DreamModel
-
+from tqdm import tqdm
 
 @dataclass
 class RolloutResult:
@@ -35,12 +37,14 @@ class RolloutResult:
 
 def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int] = None) -> List[str]:
     prompts: List[str] = []
-
+    if (use_gsm8k and use_humaneval) or (not use_gsm8k and not use_humaneval):
+        use_gsm8k = True; use_humaneval = False
     if use_gsm8k:
         try:
             dataset = load_dataset("gsm8k", "main", split="train")
             for item in dataset:
                 prompts.append(item["question"])
+            print(f"Loaded {len(prompts)} GSM8K prompts.")
         except Exception as e:
             print(f"Warning: Failed to load GSM8K: {e}")
 
@@ -49,6 +53,7 @@ def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int
             dataset = load_dataset("openai_humaneval", split="test")
             for item in dataset:
                 prompts.append(item.get("prompt", ""))
+            print(f"Loaded {len(prompts)} HumanEval prompts.")
         except Exception as e:
             print(f"Warning: Failed to load HumanEval: {e}")
             
@@ -74,6 +79,8 @@ def get_mask_id(model_type: str, model) -> int:
 def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: torch.Tensor) -> torch.Tensor:
     if hidden.dim() == 3:
         hidden = hidden[:, -1, :]
+    # [FIX] Force entropy to match hidden dtype (BFloat16) to avoid matmul error
+    # entropy = entropy.to(dtype=hidden.dtype)
     entropy = entropy.view(entropy.size(0), 1)
     x = torch.cat([hidden, entropy], dim=-1)
     x = policy_net.act(policy_net.fc1(x))
@@ -81,7 +88,16 @@ def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: to
 
 
 def sample_block_len(policy_net, hidden: torch.Tensor, entropy: torch.Tensor, min_len: int, max_len: int) -> Tuple[int, torch.Tensor]:
+    # [FIX] Sanitize inputs: replace NaN/Inf with 0 to prevent network pollution
+    # hidden = torch.nan_to_num(hidden, nan=0.0, posinf=0.0, neginf=0.0)
+    # entropy = torch.nan_to_num(entropy, nan=0.0, posinf=0.0, neginf=0.0)
+    
+    # Ensure dtype match (in case entropy is float32 and hidden is bfloat16)
+    # entropy = entropy.to(hidden.dtype)
+
     logits = policy_logits(policy_net, hidden, entropy)
+    # [FIX] Sanitize logits: replace NaN in logits to prevent categorical sampling crash
+    # logits = torch.nan_to_num(logits, nan=-100.0, posinf=100.0, neginf=-100.0)
     dist = torch.distributions.Categorical(logits=logits)
     action = dist.sample()
     logprob = dist.log_prob(action)
@@ -181,7 +197,8 @@ def rollout_llada(
         log_probs = torch.log_softmax(last_logits, dim=-1)
         probs = log_probs.exp()
         entropy = -(probs * log_probs).sum(-1)
-
+        # entropy = torch.distributions.Categorical(logits=last_logits).entropy()
+        
         block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, block_len_min, block_len_max)
         block_len = min(block_len, gen_length - current_len)
 
@@ -300,6 +317,7 @@ def rollout_dream(
         log_probs = torch.log_softmax(last_logits, dim=-1)
         probs = log_probs.exp()
         entropy = -(probs * log_probs).sum(-1)
+        # entropy = torch.distributions.Categorical(logits=last_logits).entropy()
 
         block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, block_len_min, block_len_max)
         block_len = min(block_len, gen_length - current_len)
@@ -395,9 +413,9 @@ def compute_reward_nll(
         return nll
 
 
-def compute_r_speed(block_lens: List[int], min_len: int, max_len: int) -> torch.Tensor:
+def compute_r_speed(block_lens: List[int], min_len: int, max_len: int, device: torch.device) -> torch.Tensor:
     L_avg = sum(block_lens) / max(1, len(block_lens))
-    return torch.tensor((L_avg - min_len) / max(1e-6, (max_len - min_len)))
+    return torch.tensor((L_avg - min_len) / max(1e-6, (max_len - min_len)), device=device)
 
 
 def ppo_loss(new_logprob: torch.Tensor, old_logprob: torch.Tensor, advantage: torch.Tensor, clip: float) -> torch.Tensor:
@@ -405,44 +423,43 @@ def ppo_loss(new_logprob: torch.Tensor, old_logprob: torch.Tensor, advantage: to
     clipped = torch.clamp(ratio, 1 - clip, 1 + clip)
     return -torch.min(ratio * advantage, clipped * advantage).mean()
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_type", choices=["llada", "dream"], default="llada")
     parser.add_argument("--model_path", type=str, default="GSAI-ML/LLaDA-8B-Instruct")
-    
+    parser.add_argument("--resume", type=str2bool, default=False)
     # [MODIFIED] Default is None so we can set it dynamically based on model_type
     parser.add_argument("--ar_guidance_model", type=str, default=None)
     
-    parser.add_argument("--ar_reward_model", type=str, default="Qwen/Qwen3-8B")
+    parser.add_argument("--ar_reward_model", type=str, choices=["Qwen/Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-8B"], default="Qwen/Qwen3-8B")
     parser.add_argument("--reward_offload_dir", type=str, default="./offload_reward")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--seed", type=int, default=42)
 
-    parser.add_argument("--use_gsm8k", action="store_true")
-    parser.add_argument("--use_humaneval", action="store_true")
-    parser.add_argument("--max_samples", type=int, default=256)
+    parser.add_argument("--use_gsm8k", type=str2bool, default=False)
+    parser.add_argument("--use_humaneval", type=str2bool, default=False)
+    parser.add_argument("--max_samples", type=int, default=None)
 
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--rollouts", type=int, default=4)
     parser.add_argument("--gen_length", type=int, default=256)
     parser.add_argument("--steps", type=int, default=128)
     parser.add_argument("--block_len_min", type=int, default=8)
-    parser.add_argument("--block_len_max", type=int, default=64)
+    parser.add_argument("--block_len_max", type=int, default=256)
     parser.add_argument("--threshold", type=float, default=0.9)
 
-    parser.add_argument("--guidance_gamma", type=float, default=0.2)
+    parser.add_argument("--guidance_gamma", type=float, default=0.0)
     parser.add_argument("--guidance_temperature", type=float, default=0.5)
 
     parser.add_argument("--w1", type=float, default=1.0)
-    parser.add_argument("--w2", type=float, default=1.0)
+    parser.add_argument("--w2", type=float, default=0.0)
     parser.add_argument("--lambda_ccd", type=float, default=0.1)
     parser.add_argument("--ppo_clip", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=1e-4)
 
     parser.add_argument("--save_path", type=str, default=None)
     parser.add_argument("--load_path", type=str, default=None)
-    parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--wandb", type=str2bool, default=True)
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -451,10 +468,10 @@ def main():
     if args.ar_guidance_model is None:
         if args.model_type == "llada":
             args.ar_guidance_model = "meta-llama/Llama-3.2-1B-Instruct"
-            print(f"✅ Selected Guidance for LLaDA: {args.ar_guidance_model}")
+            print(f"Selected Guidance for LLaDA: {args.ar_guidance_model}")
         elif args.model_type == "dream":
             args.ar_guidance_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-            print(f"✅ Selected Guidance for Dream: {args.ar_guidance_model}")
+            print(f"Selected Guidance for Dream: {args.ar_guidance_model}")
     # ---------------------------------------------------
 
     if args.save_path is None:
@@ -463,7 +480,7 @@ def main():
         args.load_path = f"./checkpoints/policy_{args.model_type}.pt"
     if not args.use_gsm8k and not args.use_humaneval:
         args.use_gsm8k = True
-        args.use_humaneval = True
+        args.use_humaneval = False
 
     prompts = load_prompts(args.use_gsm8k, args.use_humaneval, max_samples=args.max_samples)
 
@@ -492,9 +509,18 @@ def main():
     for p in policy_net.parameters():
         p.requires_grad = True
 
-    if args.load_path and os.path.exists(args.load_path):
-        policy_net.load_state_dict(torch.load(args.load_path, map_location=device))
-
+    if args.resume and args.load_path and os.path.exists(args.load_path):
+        is_corrupted = False
+        for name, param in model.named_parameters():
+            if torch.isnan(param).any():
+                is_corrupted = True
+            if torch.isinf(param).any():
+                is_corrupted = True
+        if is_corrupted:
+            print("Warning: Model parameters contain NaN or Inf. Skipping loading policy.")
+        else:
+            print(f"Loading policy from {os.path.abspath(args.load_path)}")
+            policy_net.load_state_dict(torch.load(args.load_path, map_location=device))
     optimizer = torch.optim.AdamW(policy_net.parameters(), lr=args.lr)
 
     ar_guidance_model = AutoModelForCausalLM.from_pretrained(
@@ -520,12 +546,16 @@ def main():
         try:
             import wandb as _wandb
             wandb = _wandb
-            wandb.init(project="adaptive-dllm", config=vars(args))
+            wandb.init(project="adaptive-dllm", dir="./wandb_logs", config=vars(args))
+            if wandb.run is not None:
+                print(f"WandB Run URL: {wandb.run.url}")
+                print(f"WandB Project URL: {wandb.run.project_url}")
         except Exception:
             use_wandb = False
+            print("wandb import failed.")
 
-    for epoch in range(args.epochs):
-        for i, prompt in enumerate(prompts):
+    for epoch in tqdm(range(args.epochs), desc="Epochs"):
+        for i, prompt in enumerate(tqdm(prompts, desc="Prompts")):
             start_time = time.time()
             rollouts: List[RolloutResult] = []
             r_qual_list = []
@@ -567,7 +597,10 @@ def main():
                 gen_text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)
                 nll = compute_reward_nll(reward_model, reward_tokenizer, prompt, gen_text, device=device)
                 r_qual = torch.exp(-nll)
-                r_speed = compute_r_speed(rollout.block_lens, args.block_len_min, args.block_len_max)
+                r_speed = compute_r_speed(rollout.block_lens, args.block_len_min, args.block_len_max, device=device)
+                # [FIX] Reward Gating: If Quality is too low (<0.5), force Speed Reward to 0
+                if False: # r_qual < 0.5:
+                    r_speed = torch.tensor(0.0, device=device)
                 r_ccd = rollout.entropy_ccd
 
                 rollouts.append(rollout)
@@ -581,7 +614,12 @@ def main():
 
             a_q = (r_qual_tensor - r_qual_tensor.mean()) / (r_qual_tensor.std() + 1e-6)
             a_s = (r_speed_tensor - r_speed_tensor.mean()) / (r_speed_tensor.std() + 1e-6)
-            a_total = args.w1 * a_q + args.w2 * a_s - args.lambda_ccd * r_ccd_tensor
+            a_ccd = (r_ccd_tensor - r_ccd_tensor.mean()) / (r_ccd_tensor.std() + 1e-6)
+            a_q_weighted = args.w1 * a_q
+            a_s_weighted = args.w2 * a_s
+            a_ccd_weighted = args.lambda_ccd * a_ccd
+            a_total = a_q_weighted + a_s_weighted - a_ccd_weighted
+            
 
             losses = []
             for idx, rollout in enumerate(rollouts):
@@ -599,19 +637,25 @@ def main():
             loss_total.backward()
             optimizer.step()
             
-            if i % 1 == 0:
-                print(f"Step {i} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | Time: {time.time() - start_time:.2f}s")
-
+            if i == 0 or (i + 1) % 1 == 0:
+                print(f"Step {i} | a_total: {a_total.mean():.4f} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | R_speed: {r_speed_tensor.mean():.4f} | R_CCD: {r_ccd_tensor.mean():.4f} | a_q: {a_q.mean():.4f} | a_s: {a_s.mean():.4f} | a_ccd: {a_ccd.mean():.4f} | a_q_weighted: {a_q_weighted.mean():.4f} | a_s_weighted: {a_s_weighted.mean():.4f} | a_ccd_weighted: {a_ccd_weighted.mean():.4f} | Time: {time.time() - start_time:.2f}s")
             if use_wandb:
                 wandb.log({
+                    "Train/a_total": a_total.mean().item(),
+                    "Train/Loss": loss_total.item(),
                     "Train/R_qual": r_qual_tensor.mean().item(),
                     "Train/R_speed": r_speed_tensor.mean().item(),
                     "Train/R_CCD": r_ccd_tensor.mean().item(),
-                    "Train/Loss": loss_total.item(),
+                    "Train/a_q": a_q.mean().item(),
+                    "Train/a_s": a_s.mean().item(),
+                    "Train/a_ccd": a_ccd.mean().item(),
+                    "Train/a_q_weighted": a_q_weighted.mean().item(),
+                    "Train/a_s_weighted": a_s_weighted.mean().item(),
+                    "Train/a_ccd_weighted": a_ccd_weighted.mean().item(),
                 })
-
-        os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
-        torch.save(policy_net.state_dict(), args.save_path)
+            if i == 0 or (i + 1) % 10 == 0:
+                os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
+                torch.save(policy_net.state_dict(), args.save_path)
 
     if use_wandb:
         wandb.finish()
