@@ -15,6 +15,7 @@ import os
 import math
 import time
 import sys
+import re
 import datetime
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -175,6 +176,24 @@ class RolloutResult:
     entropy_ccd: torch.Tensor
     policy_features: List[Tuple[torch.Tensor, torch.Tensor]]
     policy_actions: List[int]
+
+
+def extract_answer(text):
+    """Extract the numerical answer from the text."""
+    # If the text contains the gold separator, use it
+    if "####" in text:
+        return text.split("####")[-1].strip().replace(',', '')
+    # Otherwise look for the last number
+    matches = re.findall(r'-?\d+\.?\d*', text.replace(',', ''))
+    if matches:
+        return matches[-1]
+    return None
+
+def is_correct(pred, gold):
+    try:
+        return abs(float(pred) - float(gold)) < 1e-6
+    except:
+        return False
 
 
 def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int] = None) -> List[dict]:
@@ -632,7 +651,7 @@ def main():
     parser.add_argument("--guidance_temperature", type=float, default=0.5)
 
     parser.add_argument("--w1", type=float, default=1.0)
-    parser.add_argument("--w2", type=float, default=0.5)
+    parser.add_argument("--w2", type=float, default=0.0)
     parser.add_argument("--lambda_ccd", type=float, default=0.1)
     parser.add_argument("--ppo_clip", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -745,6 +764,8 @@ def main():
             print("wandb import failed.")
 
     for epoch in tqdm(range(args.epochs), desc="Epochs"):
+        correct_count = 0
+        total_count = 0
         for i, item in enumerate(tqdm(prompts, desc="Prompts")):
             prompt = item["prompt"]
             answer = item["answer"]
@@ -787,6 +808,16 @@ def main():
                     )
 
                 gen_text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)
+                
+                # Accuracy Check
+                pred_val = extract_answer(gen_text)
+                gold_val = extract_answer(answer)
+                is_right = False
+                if pred_val and gold_val and is_correct(pred_val, gold_val):
+                    is_right = True
+                    correct_count += 1
+                total_count += 1
+
                 nll = compute_reward_nll(reward_model, reward_tokenizer, prompt, gen_text, device=device)
                 r_qual = torch.exp(-nll)
                 r_speed = compute_r_speed(rollout.block_lens, args.block_len_min, args.block_len_max, device=device)
@@ -842,7 +873,8 @@ def main():
             optimizer.step()
             
             if i == 0 or (i + 1) % 1 == 0:
-                print(f"Step {i} | a_total: {a_total.mean():.4f} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | R_speed: {r_speed_tensor.mean():.4f} | R_CCD: {r_ccd_tensor.mean():.4f} | a_q: {a_q.mean():.4f} | a_s: {a_s.mean():.4f} | a_ccd: {a_ccd.mean():.4f} | a_q_weighted: {a_q_weighted.mean():.4f} | a_s_weighted: {a_s_weighted.mean():.4f} | a_ccd_weighted: {a_ccd_weighted.mean():.4f} | Time: {time.time() - start_time:.2f}s")
+                acc_val = correct_count / total_count if total_count > 0 else 0.0
+                print(f"Step {i} | Acc: {acc_val:.2%} ({correct_count}/{total_count}) | a_total: {a_total.mean():.4f} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | R_speed: {r_speed_tensor.mean():.4f} | R_CCD: {r_ccd_tensor.mean():.4f} | a_q: {a_q.mean():.4f} | a_s: {a_s.mean():.4f} | a_ccd: {a_ccd.mean():.4f} | a_q_weighted: {a_q_weighted.mean():.4f} | a_s_weighted: {a_s_weighted.mean():.4f} | a_ccd_weighted: {a_ccd_weighted.mean():.4f} | Time: {time.time() - start_time:.2f}s")
             if args.debug:
                 print("\n" + "=" * 80)
                 print("PROMPT:\n", prompt)
@@ -856,10 +888,14 @@ def main():
                 print("\nGENERATED TEXTS:")
                 for rollout in rollouts:
                     text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)
-                    print(text.strip())
+                    p_val = extract_answer(text)
+                    g_val = extract_answer(answer)
+                    valid = "CORRECT" if (p_val and g_val and is_correct(p_val, g_val)) else "WRONG"
+                    print(f"[{valid}] Gen: {p_val} | Gold: {g_val}")
                 print("=" * 80 + "\n")
             if use_wandb:
                 wandb.log({
+                    "Train/Accuracy": correct_count / total_count if total_count > 0 else 0.0,
                     "Train/a_total": a_total.mean().item(),
                     "Train/Loss": loss_total.item(),
                     "Train/R_qual": r_qual_tensor.mean().item(),
