@@ -177,15 +177,15 @@ class RolloutResult:
     policy_actions: List[int]
 
 
-def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int] = None) -> List[str]:
-    prompts: List[str] = []
+def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int] = None) -> List[dict]:
+    prompts: List[dict] = []
     if (use_gsm8k and use_humaneval) or (not use_gsm8k and not use_humaneval):
         use_gsm8k = True; use_humaneval = False
     if use_gsm8k:
         try:
             dataset = load_dataset("gsm8k", "main", split="train")
             for item in dataset:
-                prompts.append(item["question"])
+                prompts.append({"prompt": item["question"], "answer": item["answer"]})
             print(f"Loaded {len(prompts)} GSM8K prompts.")
         except Exception as e:
             print(f"Warning: Failed to load GSM8K: {e}")
@@ -194,13 +194,13 @@ def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int
         try:
             dataset = load_dataset("openai_humaneval", split="test")
             for item in dataset:
-                prompts.append(item.get("prompt", ""))
+                prompts.append({"prompt": item.get("prompt", ""), "answer": item.get("canonical_solution", "")})
             print(f"Loaded {len(prompts)} HumanEval prompts.")
         except Exception as e:
             print(f"Warning: Failed to load HumanEval: {e}")
             
     if not prompts:
-        prompts = ["Explain the theory of relativity."] # Fallback
+        prompts = [{"prompt": "Explain the theory of relativity.", "answer": "N/A"}] # Fallback
 
     if max_samples is not None:
         prompts = prompts[:max_samples]
@@ -628,11 +628,11 @@ def main():
     parser.add_argument("--block_len_max", type=int, default=64)
     parser.add_argument("--threshold", type=float, default=0.9)
 
-    parser.add_argument("--guidance_gamma", type=float, default=0.0)
+    parser.add_argument("--guidance_gamma", type=float, default=0.5)
     parser.add_argument("--guidance_temperature", type=float, default=0.5)
 
     parser.add_argument("--w1", type=float, default=1.0)
-    parser.add_argument("--w2", type=float, default=0.0)
+    parser.add_argument("--w2", type=float, default=0.5)
     parser.add_argument("--lambda_ccd", type=float, default=0.1)
     parser.add_argument("--ppo_clip", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -745,7 +745,9 @@ def main():
             print("wandb import failed.")
 
     for epoch in tqdm(range(args.epochs), desc="Epochs"):
-        for i, prompt in enumerate(tqdm(prompts, desc="Prompts")):
+        for i, item in enumerate(tqdm(prompts, desc="Prompts")):
+            prompt = item["prompt"]
+            answer = item["answer"]
             start_time = time.time()
             rollouts: List[RolloutResult] = []
             r_qual_list = []
@@ -844,6 +846,7 @@ def main():
             if args.debug:
                 print("\n" + "=" * 80)
                 print("PROMPT:\n", prompt)
+                print("GOLD ANSWER:\n", answer)
                 print("\nPOLICY ACTIONS (block_len - 1):")
                 for rollout in rollouts:
                     print(rollout.policy_actions)
@@ -852,7 +855,8 @@ def main():
                     print(rollout.block_lens)
                 print("\nGENERATED TEXTS:")
                 for rollout in rollouts:
-                    print(gen_text.strip())
+                    text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)
+                    print(text.strip())
                 print("=" * 80 + "\n")
             if use_wandb:
                 wandb.log({
