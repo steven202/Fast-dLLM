@@ -16,6 +16,7 @@ import math
 import time
 import sys
 import re
+import random
 import datetime
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
@@ -178,53 +179,117 @@ class RolloutResult:
     policy_actions: List[int]
 
 
-def extract_answer(text):
-    """Extract the numerical answer from the text."""
-    # If the text contains the gold separator, use it
+def extract_answer_math(text):
+    """Specific extractor for MATH/GSM8K"""
+    # 1. Handle GSM8K style (####)
     if "####" in text:
         return text.split("####")[-1].strip().replace(',', '')
-    # Otherwise look for the last number
+    
+    # 2. Handle MATH style (\boxed{})
+    # Find the last occurrence of \boxed{...}
+    boxed_matches = re.findall(r'\\boxed\{(.*?)\}', text)
+    if boxed_matches:
+        return boxed_matches[-1]
+        
+    # 3. Fallback: Find last number
     matches = re.findall(r'-?\d+\.?\d*', text.replace(',', ''))
     if matches:
         return matches[-1]
     return None
 
-def is_correct(pred, gold):
+def normalize_code(code):
+    """Strip whitespace, comments, and imports for comparison"""
+    # Simple normalization: remove all whitespace to compare logic structure
+    return re.sub(r'\s+', '', code).strip()
+
+def is_correct_smart(pred, gold, dataset_type):
+    """Polymorphic evaluator"""
     try:
-        return abs(float(pred) - float(gold)) < 1e-6
-    except:
-        return False
-
-
-def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int] = None) -> List[dict]:
-    prompts: List[dict] = []
-    if (use_gsm8k and use_humaneval) or (not use_gsm8k and not use_humaneval):
-        use_gsm8k = True; use_humaneval = False
-    if use_gsm8k:
-        try:
-            dataset = load_dataset("gsm8k", "main", split="train")
-            for item in dataset:
-                prompts.append({"prompt": item["question"], "answer": item["answer"]})
-            print(f"Loaded {len(prompts)} GSM8K prompts.")
-        except Exception as e:
-            print(f"Warning: Failed to load GSM8K: {e}")
-
-    if use_humaneval:
-        try:
-            dataset = load_dataset("openai_humaneval", split="test")
-            for item in dataset:
-                prompts.append({"prompt": item.get("prompt", ""), "answer": item.get("canonical_solution", "")})
-            print(f"Loaded {len(prompts)} HumanEval prompts.")
-        except Exception as e:
-            print(f"Warning: Failed to load HumanEval: {e}")
+        if dataset_type in ["gsm8k", "math"]:
+            pred_val = extract_answer_math(pred)
+            gold_val = extract_answer_math(gold)
+            if pred_val is None or gold_val is None:
+                return False
+            # Check for float equality
+            return abs(float(pred_val) - float(gold_val)) < 1e-6
             
-    if not prompts:
-        prompts = [{"prompt": "Explain the theory of relativity.", "answer": "N/A"}] # Fallback
+        elif dataset_type in ["humaneval", "mbpp"]:
+            # For code, Exact Match is very harsh. 
+            # We usually rely on NLL reward for code training.
+            # But for logging accuracy, we try normalized string match.
+            return normalize_code(pred) == normalize_code(gold)
+            
+    except:
+        # If conversion to float fails (e.g. comparing "5" to "x=5"), return False
+        return False
+    return False
+
+
+def load_prompts(dataset_names: List[str], max_samples: Optional[int] = None) -> List[dict]:
+    """
+    Loads and normalizes multiple datasets.
+    Returns a list of dicts: {"prompt": str, "answer": str, "dataset": str}
+    """
+    all_prompts = []
+    
+    for d_name in dataset_names:
+        dataset_data = []
+        try:
+            if d_name == "gsm8k":
+                ds = load_dataset("gsm8k", "main", split="train")
+                for item in ds:
+                    dataset_data.append({
+                        "prompt": item["question"], 
+                        "answer": item["answer"], 
+                        "dataset": "gsm8k"
+                    })
+            
+            elif d_name == "math":
+                ds = load_dataset("hendrycks/competition_math", split="train")
+                for item in ds:
+                    dataset_data.append({
+                        "prompt": item["problem"], 
+                        "answer": item["solution"], 
+                        "dataset": "math"
+                    })
+            
+            elif d_name == "humaneval":
+                ds = load_dataset("openai_humaneval", split="test")
+                for item in ds:
+                    dataset_data.append({
+                        "prompt": item["prompt"], 
+                        "answer": item["canonical_solution"], 
+                        "dataset": "humaneval"
+                    })
+
+            elif d_name == "mbpp":
+                # MBPP often needs 'sanitized' split for cleaner code
+                ds = load_dataset("mbpp", "sanitized", split="train")
+                for item in ds:
+                    # Construct a prompt that looks like code comments
+                    prompt_text = f'"""\n{item["text"]}\n"""\n'
+                    dataset_data.append({
+                        "prompt": prompt_text, 
+                        "answer": item["code"], 
+                        "dataset": "mbpp"
+                    })
+            
+            print(f"Loaded {len(dataset_data)} samples from {d_name}.")
+            all_prompts.extend(dataset_data)
+
+        except Exception as e:
+            print(f"Error loading {d_name}: {e}")
+
+    # Shuffle mixed datasets to prevent catastrophic forgetting
+    random.shuffle(all_prompts)
+
+    if not all_prompts:
+        all_prompts = [{"prompt": "Explain the theory of relativity.", "answer": "N/A", "dataset": "k"}] # Fallback
 
     if max_samples is not None:
-        prompts = prompts[:max_samples]
-
-    return prompts
+        all_prompts = all_prompts[:max_samples]
+        
+    return all_prompts
 
 
 def get_mask_id(model_type: str, model) -> int:
@@ -697,8 +762,9 @@ def main():
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--seed", type=int, default=42)
 
-    parser.add_argument("--use_gsm8k", type=str2bool, default=False)
-    parser.add_argument("--use_humaneval", type=str2bool, default=False)
+    parser.add_argument("--datasets", nargs="+", default=["gsm8k"], 
+                   choices=["gsm8k", "math", "humaneval", "mbpp"],
+                   help="List of datasets to use")
     parser.add_argument("--max_samples", type=int, default=None)
 
     parser.add_argument("--epochs", type=int, default=1)
@@ -740,11 +806,8 @@ def main():
         args.save_path = f"./checkpoints/policy_{args.model_type}.pt"
     if args.load_path is None:
         args.load_path = f"./checkpoints/policy_{args.model_type}.pt"
-    if not args.use_gsm8k and not args.use_humaneval:
-        args.use_gsm8k = True
-        args.use_humaneval = False
 
-    prompts = load_prompts(args.use_gsm8k, args.use_humaneval, max_samples=args.max_samples)
+    prompts = load_prompts(args.datasets, max_samples=args.max_samples)
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
@@ -835,6 +898,8 @@ def main():
             start_time = time.time()
             rollouts: List[RolloutResult] = []
             r_qual_list = []
+            dataset_type = item.get("dataset", "gsm8k")
+            
             r_speed_list = []
             r_ccd_list = []
             r_acc_list = []
@@ -874,11 +939,9 @@ def main():
                 gen_text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)
                 
                 # Accuracy Check
-                pred_val = extract_answer(gen_text)
-                gold_val = extract_answer(answer)
-                is_right = False
-                if pred_val and gold_val and is_correct(pred_val, gold_val):
-                    is_right = True
+                # Accuracy Check
+                is_right = is_correct_smart(gen_text, answer, dataset_type)
+                if is_right:
                     correct_count += 1
                 total_count += 1
 
@@ -961,10 +1024,8 @@ def main():
                 print("\nGENERATED TEXTS:")
                 for rollout in rollouts:
                     text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)
-                    p_val = extract_answer(text)
-                    g_val = extract_answer(answer)
-                    valid = "CORRECT" if (p_val and g_val and is_correct(p_val, g_val)) else "WRONG"
-                    print(f"[{valid}] Gen: {p_val} | Gold: {g_val}")
+                    valid = "CORRECT" if is_correct_smart(text, answer, dataset_type) else "WRONG"
+                    print(f"[{valid}] {text}")
                 print("=" * 80 + "\n")
             if use_wandb:
                 wandb.log({
