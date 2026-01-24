@@ -714,6 +714,7 @@ def main():
 
     parser.add_argument("--w1", type=float, default=1.0)
     parser.add_argument("--w2", type=float, default=0.0)
+    parser.add_argument("--w_acc", type=float, default=1.0)
     parser.add_argument("--lambda_ccd", type=float, default=0.1)
     parser.add_argument("--ppo_clip", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -836,6 +837,7 @@ def main():
             r_qual_list = []
             r_speed_list = []
             r_ccd_list = []
+            r_acc_list = []
 
             for _ in range(args.rollouts):
                 if args.model_type == "llada":
@@ -882,6 +884,7 @@ def main():
 
                 nll = compute_reward_nll(reward_model, reward_tokenizer, prompt, gen_text, device=device)
                 r_qual = torch.exp(-nll)
+                r_acc = torch.tensor(1.0 if is_right else 0.0, device=device)
                 r_speed = compute_r_speed(rollout.block_lens, args.block_len_min, args.block_len_max, device=device)
                 # [FIX] Reward Gating: If Quality is too low (<0.5), force Speed Reward to 0
                 if False: # r_qual < 0.5:
@@ -892,10 +895,12 @@ def main():
                 r_qual_list.append(r_qual)
                 r_speed_list.append(r_speed)
                 r_ccd_list.append(r_ccd)
+                r_acc_list.append(r_acc)
 
             r_qual_tensor = torch.stack(r_qual_list)
             r_speed_tensor = torch.stack(r_speed_list)
             r_ccd_tensor = torch.stack(r_ccd_list)
+            r_acc_tensor = torch.stack(r_acc_list)
 
             if r_qual_tensor.numel() > 1 and r_qual_tensor.std() > 0:
                 a_q = (r_qual_tensor - r_qual_tensor.mean()) / (r_qual_tensor.std() + 1e-6)
@@ -911,11 +916,17 @@ def main():
                 a_ccd = (r_ccd_tensor - r_ccd_tensor.mean()) / (r_ccd_tensor.std() + 1e-6)
             else:
                 a_ccd = torch.zeros_like(r_ccd_tensor)
+
+            if r_acc_tensor.numel() > 1 and r_acc_tensor.std() > 0:
+                a_acc = (r_acc_tensor - r_acc_tensor.mean()) / (r_acc_tensor.std() + 1e-6)
+            else:
+                a_acc = torch.zeros_like(r_acc_tensor)
                 
             a_q_weighted = args.w1 * a_q
             a_s_weighted = args.w2 * a_s
+            a_acc_weighted = args.w_acc * a_acc
             a_ccd_weighted = args.lambda_ccd * a_ccd
-            a_total = a_q_weighted + a_s_weighted - a_ccd_weighted
+            a_total = a_q_weighted + a_s_weighted + a_acc_weighted - a_ccd_weighted
             
 
             losses = []
@@ -936,7 +947,7 @@ def main():
             
             if i == 0 or (i + 1) % 1 == 0:
                 acc_val = correct_count / total_count if total_count > 0 else 0.0
-                print(f"Step {i} | Acc: {acc_val:.2%} ({correct_count}/{total_count}) | a_total: {a_total.mean():.4f} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | R_speed: {r_speed_tensor.mean():.4f} | R_CCD: {r_ccd_tensor.mean():.4f} | a_q: {a_q.mean():.4f} | a_s: {a_s.mean():.4f} | a_ccd: {a_ccd.mean():.4f} | a_q_weighted: {a_q_weighted.mean():.4f} | a_s_weighted: {a_s_weighted.mean():.4f} | a_ccd_weighted: {a_ccd_weighted.mean():.4f} | Time: {time.time() - start_time:.2f}s")
+                print(f"Step {i} | Acc: {acc_val:.2%} ({correct_count}/{total_count}) | a_total: {a_total.mean():.4f} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | R_speed: {r_speed_tensor.mean():.4f} | R_acc: {r_acc_tensor.mean():.4f} | R_CCD: {r_ccd_tensor.mean():.4f} | a_q: {a_q.mean():.4f} | a_s: {a_s.mean():.4f} | a_acc: {a_acc.mean():.4f} | a_ccd: {a_ccd.mean():.4f} | Time: {time.time() - start_time:.2f}s")
             if args.debug:
                 print("\n" + "=" * 80)
                 print("PROMPT:\n", prompt)
@@ -962,12 +973,15 @@ def main():
                     "Train/Loss": loss_total.item(),
                     "Train/R_qual": r_qual_tensor.mean().item(),
                     "Train/R_speed": r_speed_tensor.mean().item(),
+                    "Train/R_acc": r_acc_tensor.mean().item(),
                     "Train/R_CCD": r_ccd_tensor.mean().item(),
                     "Train/a_q": a_q.mean().item(),
                     "Train/a_s": a_s.mean().item(),
+                    "Train/a_acc": a_acc.mean().item(),
                     "Train/a_ccd": a_ccd.mean().item(),
                     "Train/a_q_weighted": a_q_weighted.mean().item(),
                     "Train/a_s_weighted": a_s_weighted.mean().item(),
+                    "Train/a_acc_weighted": a_acc_weighted.mean().item(),
                     "Train/a_ccd_weighted": a_ccd_weighted.mean().item(),
                 })
             if i == 0 or (i + 1) % 10 == 0:
