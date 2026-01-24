@@ -27,11 +27,74 @@ try:
     # Helper to load LLaDA/Dream models using their specific classes
     from llada.model.modeling_llada import LLaDAModelLM
     from dream.model.modeling_dream import DreamModel
+    from utils.eval_utils import is_correct_smart
+    from utils.logging_utils import Tee
 except ImportError as e:
     print(f"Error importing modules: {e}")
     sys.exit(1)
 
 eval_logger = logging.getLogger(__name__)
+
+_LOG_FILE = None
+_LOG_INITIALIZED = False
+_WANDB_INITIALIZED = False
+
+
+def setup_eval_logging(log_dir: str = "./eval_log"):
+    global _LOG_INITIALIZED, _LOG_FILE
+    if _LOG_INITIALIZED:
+        return _LOG_FILE
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(log_dir, f"eval_{timestamp}.log")
+    f = open(log_path, "w", encoding="utf-8")
+    original_stdout = sys.stdout
+    sys.stdout = Tee(original_stdout, f)
+    print(f"Logging initialized. Output saved to: {os.path.abspath(log_path)}")
+    _LOG_FILE = f
+    _LOG_INITIALIZED = True
+    return f
+
+
+def init_wandb(project: str, run_name: Optional[str], wandb_dir: str):
+    global _WANDB_INITIALIZED
+    if _WANDB_INITIALIZED:
+        return None
+    try:
+        import wandb as _wandb
+        _wandb.init(project=project, dir=wandb_dir, name=run_name)
+        _WANDB_INITIALIZED = True
+        return _wandb
+    except Exception as e:
+        eval_logger.warning(f"wandb init failed: {e}")
+        return None
+
+
+def extract_gold_answer(doc: dict) -> str:
+    if not isinstance(doc, dict):
+        return ""
+    for key in ("answer", "gold", "target", "targets", "solution", "canonical_solution", "output"):
+        if key in doc:
+            val = doc[key]
+            if isinstance(val, list):
+                return str(val[0]) if val else ""
+            return str(val)
+    return ""
+
+
+def infer_dataset_type(doc: dict) -> str:
+    if isinstance(doc, dict):
+        task_id = str(doc.get("task_id", "")).lower()
+        if task_id.startswith("humaneval"):
+            return "humaneval"
+        if "mbpp" in task_id:
+            return "mbpp"
+        dataset = str(doc.get("dataset", "")).lower()
+        if dataset in ("gsm8k", "math", "humaneval", "mbpp"):
+            return dataset
+        if "math" in dataset:
+            return "math"
+    return "gsm8k"
 
 def load_policy_weights(model, policy_path, model_type):
     eval_logger.info(f"Loading policy from {policy_path}...")
@@ -65,6 +128,12 @@ class AdaptiveBase(LM):
         batch_size: Optional[Union[int, str]] = 1,
         device: Optional[str] = "cuda",
         dtype: Optional[Union[str, torch.dtype]] = "bfloat16",
+        log_dir: str = "./eval_log",
+        enable_tee: bool = True,
+        wandb: bool = False,
+        wandb_project: str = "adaptive-dllm-eval",
+        wandb_run_name: Optional[str] = None,
+        wandb_dir: str = "./wandb_log",
         # Generation/Policy args
         gen_length: int = 256,
         steps: int = 256,
@@ -91,6 +160,11 @@ class AdaptiveBase(LM):
         self.threshold = float(threshold)
         self.guidance_gamma = float(guidance_gamma)
         self.guidance_temperature = float(guidance_temperature)
+        self._wandb = None
+        if enable_tee:
+            setup_eval_logging(log_dir=log_dir)
+        if wandb:
+            self._wandb = init_wandb(project=wandb_project, run_name=wandb_run_name, wandb_dir=wandb_dir)
         
         # Load Model
         eval_logger.info(f"Loading {model_type} model: {pretrained}")
@@ -135,6 +209,9 @@ class AdaptiveBase(LM):
             return []
             
         results = []
+        correct_count = 0
+        total_count = 0
+        total_nfe = 0
         # Process one by one since rollout is single-instance
         for req in tqdm(requests, desc=f"Evaluating {self.model_type.upper()}"):
             prompt = req.args[0]
@@ -192,6 +269,36 @@ class AdaptiveBase(LM):
             for stop in until:
                 if stop in gen_text:
                     gen_text = gen_text.split(stop)[0]
+
+            gold = extract_gold_answer(req.doc) if hasattr(req, "doc") else ""
+            dataset_type = infer_dataset_type(req.doc) if hasattr(req, "doc") else "gsm8k"
+            is_correct = is_correct_smart(gen_text, gold, dataset_type) if gold else False
+            total_count += 1
+            if is_correct:
+                correct_count += 1
+            acc = correct_count / max(1, total_count)
+            if hasattr(res, "nfe"):
+                total_nfe += int(res.nfe)
+            avg_nfe = total_nfe / max(1, total_count)
+
+            print("=" * 60)
+            print(f"Accuracy so far: {acc:.2%} ({correct_count}/{total_count})")
+            print("Question:")
+            print(prompt)
+            print("Answer:")
+            print(gen_text)
+            print("Gold Answer:")
+            print(gold)
+            print(f"Correct: {is_correct}")
+            print(f"NFE (this): {getattr(res, 'nfe', 0)} | Avg NFE: {avg_nfe:.2f}")
+            print("=" * 60)
+
+            if self._wandb is not None:
+                self._wandb.log({
+                    "eval/accuracy": acc,
+                    "eval/correct": int(is_correct),
+                    "eval/step": total_count,
+                })
             
             results.append(gen_text)
             

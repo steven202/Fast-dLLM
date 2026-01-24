@@ -42,6 +42,7 @@ class RolloutResult:
     entropy_ccd: torch.Tensor
     policy_features: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
     policy_actions: List[int]
+    nfe: int = 0
 
 
 def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: torch.Tensor, guidance_entropy: torch.Tensor) -> torch.Tensor:
@@ -276,6 +277,7 @@ def rollout_llada(
         entropy_ccd=entropy_ccd,
         policy_features=policy_features,
         policy_actions=policy_actions,
+        nfe=nfe,
     )
 
 
@@ -315,6 +317,7 @@ def rollout_dream(
     x[:, : input_ids.shape[1]] = input_ids
 
     current_len = 0
+    nfe = 0
     steps_remaining = steps
     entropy_accum = []
     block_lens = []
@@ -391,6 +394,7 @@ def rollout_dream(
             x[transfer_index] = x0[transfer_index]
 
             i += 1
+            nfe += 1
             if (x[:, block_start:block_end] == mask_id).sum() == 0:
                 break
 
@@ -406,6 +410,7 @@ def rollout_dream(
         entropy_ccd=entropy_ccd,
         policy_features=policy_features,
         policy_actions=policy_actions,
+        nfe=nfe,
     )
 
 
