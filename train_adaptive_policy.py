@@ -582,33 +582,73 @@ def rollout_dream(
     )
 
 
-def compute_reward_nll(
-    reward_model,
-    reward_tokenizer,
-    prompt: str,
-    generated_text: str,
-    device: str,
-) -> torch.Tensor:
-    # Use torch.no_grad for efficiency
+def prepare_reward_cache(reward_model, reward_tokenizer, prompt, device):
+    """
+    Runs the reward model on the prompt ONCE to cache the KV states.
+    Returns:
+        prompt_last_logit: The prediction for the first generated token.
+        past_key_values: The cached KV states for the prompt.
+    """
+    # Tokenize prompt
+    prompt_inputs = reward_tokenizer(prompt, return_tensors="pt").to(device)
+    
     with torch.no_grad():
-        # Ensure model is on correct device
-        if reward_model.device.type != "cuda" and torch.cuda.is_available():
-             reward_model.to("cuda")
+        # Run forward pass with use_cache=True
+        outputs = reward_model(**prompt_inputs, use_cache=True)
+    
+    # We need the logit for the *next* token (the first token of generation)
+    # Shape: [1, vocab_size]
+    prompt_last_logit = outputs.logits[:, -1, :]
+    
+    return prompt_last_logit, outputs.past_key_values
+
+def compute_reward_nll(
+    reward_model, 
+    reward_tokenizer, 
+    prompt_cache, 
+    generated_text, 
+    device
+) -> torch.Tensor:
+    """
+    Computes NLL using the pre-computed prompt cache.
+    Only processes the new generated_text tokens.
+    """
+    prompt_last_logit, past_key_values = prompt_cache
+    
+    # Tokenize ONLY the generated text
+    # add_special_tokens=False is critical because the prompt handles the start
+    gen_inputs = reward_tokenizer(generated_text, add_special_tokens=False, return_tensors="pt").to(device)
+    gen_ids = gen_inputs.input_ids
+    
+    # Edge case: Empty generation
+    if gen_ids.size(1) == 0:
+        return torch.tensor(0.0, device=device)
         
-        prompt_ids = reward_tokenizer(prompt, return_tensors="pt").input_ids.to(reward_model.device)
-        full_ids = reward_tokenizer(prompt + generated_text, return_tensors="pt").input_ids.to(reward_model.device)
-
-        outputs = reward_model(full_ids)
-        logits = outputs.logits[:, :-1, :]
-        labels = full_ids[:, 1:]
-
-        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), labels.reshape(-1), reduction="none")
-        loss = loss.view(labels.size())
-
-        prompt_len = prompt_ids.size(1) - 1
-        nll = loss[:, prompt_len:].mean()
-
-        return nll
+    with torch.no_grad():
+        # Feed gen_ids + past_key_values
+        # The model will only process the new tokens
+        outputs = reward_model(input_ids=gen_ids, past_key_values=past_key_values, use_cache=True)
+        gen_logits = outputs.logits
+        
+        # --- Construct Prediction Logits ---
+        # 1. Prediction for gen_ids[0] comes from prompt_last_logit
+        # 2. Prediction for gen_ids[1:] comes from gen_logits[:, :-1, :]
+        
+        if gen_ids.shape[1] > 1:
+            # Concat [Prompt Last Logit] + [Gen Logits excluding the very last step]
+            prediction_logits = torch.cat([prompt_last_logit.unsqueeze(1), gen_logits[:, :-1, :]], dim=1)
+        else:
+            # Only one token generated; prediction comes solely from prompt
+            prediction_logits = prompt_last_logit.unsqueeze(1)
+            
+        # --- Calculate NLL ---
+        loss = F.cross_entropy(
+            prediction_logits.reshape(-1, prediction_logits.size(-1)),
+            gen_ids.reshape(-1),
+            reduction="none"
+        )
+        
+        return loss.mean()
 
 
 def compute_r_speed(block_lens: List[int], min_len: int, max_len: int, device: torch.device) -> torch.Tensor:
