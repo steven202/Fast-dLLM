@@ -67,12 +67,12 @@ def load_prompts(use_gsm8k: bool, use_humaneval: bool, max_samples: Optional[int
 
 
 def get_mask_id(model_type: str, model) -> int:
+    if hasattr(model, "config") and hasattr(model.config, "mask_token_id") and model.config.mask_token_id is not None:
+        return model.config.mask_token_id
+    if hasattr(model, "generation_config") and hasattr(model.generation_config, "mask_token_id") and model.generation_config.mask_token_id is not None:
+        return model.generation_config.mask_token_id
     if model_type == "llada":
         return 126336
-    if hasattr(model, "generation_config") and hasattr(model.generation_config, "mask_token_id"):
-        return model.generation_config.mask_token_id
-    if hasattr(model, "config") and hasattr(model.config, "mask_token_id"):
-        return model.config.mask_token_id
     raise ValueError("Unable to infer mask token id.")
 
 
@@ -98,11 +98,18 @@ def sample_block_len(policy_net, hidden: torch.Tensor, entropy: torch.Tensor, mi
     logits = policy_logits(policy_net, hidden, entropy)
     # [FIX] Sanitize logits: replace NaN in logits to prevent categorical sampling crash
     # logits = torch.nan_to_num(logits, nan=-100.0, posinf=100.0, neginf=-100.0)
+
+    # Mask logits to ensure valid block_len range
+    if max_len < logits.size(-1):
+        logits[:, max_len:] = float('-inf')
+    if min_len > 1:
+        logits[:, :min_len-1] = float('-inf')
+
     dist = torch.distributions.Categorical(logits=logits)
     action = dist.sample()
     logprob = dist.log_prob(action)
     block_len = action.item() + 1
-    block_len = int(max(min_len, min(max_len, block_len)))
+    
     return block_len, logprob
 
 
@@ -165,7 +172,7 @@ def rollout_llada(
 ) -> RolloutResult:
     device = model.device
     input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(device)
-    mask_id = 126336
+    mask_id = get_mask_id("llada", model)
 
     x = torch.full((1, input_ids.shape[1] + gen_length), mask_id, dtype=torch.long, device=device)
     x[:, : input_ids.shape[1]] = input_ids
@@ -188,10 +195,22 @@ def rollout_llada(
     policy_features = []
     policy_actions = []
 
+    # [FIX] Use bidirectional attention bias for MDM/Diffusion generation
+    # LLaDA expects to see all tokens (including masks)
+    def get_attention_bias(length, device):
+        return torch.zeros((1, 1, length, length), device=device, dtype=torch.float)
+
     while current_len < gen_length:
         context_len = input_ids.shape[1] + current_len
         context_ids = x[:, :context_len]
-        outputs = model(context_ids, output_hidden_states=True)
+        
+        # Use causal or bidirectional for context? 
+        # For policy (next block len), we usually look at the last token state.
+        # If the generated part is "fixed", causal is fine, but bidirectional is better context.
+        # Let's use bidirectional to match the generation mode.
+        att_bias = get_attention_bias(context_len, device)
+        outputs = model(context_ids, attention_bias=att_bias, output_hidden_states=True)
+        
         last_hidden = outputs.hidden_states[-1][:, -1, :]
         last_logits = outputs.logits[:, -1, :]
         log_probs = torch.log_softmax(last_logits, dim=-1)
@@ -233,7 +252,10 @@ def rollout_llada(
             mask_index = (x == mask_id)
             mask_index[:, block_end:] = 0
 
-            outputs = model(x, output_hidden_states=True)
+            # [FIX] Bidirectional attention for generation step
+            att_bias = get_attention_bias(x.shape[1], device)
+            outputs = model(x, attention_bias=att_bias, output_hidden_states=True)
+            
             hidden_states = outputs.hidden_states[-1]
             hidden_states = apply_guidance_llada(model, hidden_states, guidance_target, guidance_gamma)
 
@@ -242,7 +264,12 @@ def rollout_llada(
             else:
                 logits = model.model.transformer.ff_out(hidden_states)
 
-            logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+            # [FIX] Do NOT shift logits for MDM (masked diffusion), x_t predicts x_t.
+            # Also apply scaling if configured (matching generate.py)
+            if hasattr(model.model.config, "scale_logits") and model.model.config.scale_logits:
+                 logits = logits * (1 / math.sqrt(model.model.config.d_model))
+            
+            # logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
 
             mask_logits = logits[mask_index]
             step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
@@ -445,7 +472,7 @@ def main():
     parser.add_argument("--gen_length", type=int, default=256)
     parser.add_argument("--steps", type=int, default=128)
     parser.add_argument("--block_len_min", type=int, default=8)
-    parser.add_argument("--block_len_max", type=int, default=256)
+    parser.add_argument("--block_len_max", type=int, default=64)
     parser.add_argument("--threshold", type=float, default=0.9)
 
     parser.add_argument("--guidance_gamma", type=float, default=0.0)
@@ -460,8 +487,8 @@ def main():
     parser.add_argument("--save_path", type=str, default=None)
     parser.add_argument("--load_path", type=str, default=None)
     parser.add_argument("--wandb", type=str2bool, default=True)
+    parser.add_argument("--debug", type=str2bool, default=True)
     args = parser.parse_args()
-
     set_seed(args.seed)
     
     # --- [MODIFIED] Automatic Guidance Model Selection ---
@@ -490,14 +517,14 @@ def main():
         model = LLaDAModelLM.from_pretrained(
             args.model_path,
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
         ).to(device)
         tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
         policy_net = model.model.block_policy
     else:
         model = DreamModel.from_pretrained(
             args.model_path,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             trust_remote_code=True,
         ).to(device)
         tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
@@ -525,7 +552,7 @@ def main():
 
     ar_guidance_model = AutoModelForCausalLM.from_pretrained(
         args.ar_guidance_model,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         trust_remote_code=True,
     ).to(device)
     ar_guidance_model.eval()
@@ -533,7 +560,7 @@ def main():
     os.makedirs(args.reward_offload_dir, exist_ok=True)
     reward_model = AutoModelForCausalLM.from_pretrained(
         args.ar_reward_model,
-        torch_dtype=torch.float16,
+        dtype=torch.float16,
         trust_remote_code=True,
         device_map="auto",
         offload_folder=args.reward_offload_dir,
@@ -546,7 +573,7 @@ def main():
         try:
             import wandb as _wandb
             wandb = _wandb
-            wandb.init(project="adaptive-dllm", dir="./wandb_logs", config=vars(args))
+            wandb.init(project="adaptive-dllm", dir="./wandb_logs", config=vars(args), name=f"policy_{args.model_type}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
             if wandb.run is not None:
                 print(f"WandB Run URL: {wandb.run.url}")
                 print(f"WandB Project URL: {wandb.run.project_url}")
@@ -612,9 +639,21 @@ def main():
             r_speed_tensor = torch.stack(r_speed_list)
             r_ccd_tensor = torch.stack(r_ccd_list)
 
-            a_q = (r_qual_tensor - r_qual_tensor.mean()) / (r_qual_tensor.std() + 1e-6)
-            a_s = (r_speed_tensor - r_speed_tensor.mean()) / (r_speed_tensor.std() + 1e-6)
-            a_ccd = (r_ccd_tensor - r_ccd_tensor.mean()) / (r_ccd_tensor.std() + 1e-6)
+            if r_qual_tensor.numel() > 1 and r_qual_tensor.std() > 0:
+                a_q = (r_qual_tensor - r_qual_tensor.mean()) / (r_qual_tensor.std() + 1e-6)
+            else:
+                a_q = torch.zeros_like(r_qual_tensor)
+            
+            if r_speed_tensor.numel() > 1 and r_speed_tensor.std() > 0:
+                a_s = (r_speed_tensor - r_speed_tensor.mean()) / (r_speed_tensor.std() + 1e-6)
+            else:
+                a_s = torch.zeros_like(r_speed_tensor)
+                
+            if r_ccd_tensor.numel() > 1 and r_ccd_tensor.std() > 0:
+                a_ccd = (r_ccd_tensor - r_ccd_tensor.mean()) / (r_ccd_tensor.std() + 1e-6)
+            else:
+                a_ccd = torch.zeros_like(r_ccd_tensor)
+                
             a_q_weighted = args.w1 * a_q
             a_s_weighted = args.w2 * a_s
             a_ccd_weighted = args.lambda_ccd * a_ccd
@@ -639,6 +678,19 @@ def main():
             
             if i == 0 or (i + 1) % 1 == 0:
                 print(f"Step {i} | a_total: {a_total.mean():.4f} | Loss: {loss_total.item():.4f} | R_qual: {r_qual_tensor.mean():.4f} | R_speed: {r_speed_tensor.mean():.4f} | R_CCD: {r_ccd_tensor.mean():.4f} | a_q: {a_q.mean():.4f} | a_s: {a_s.mean():.4f} | a_ccd: {a_ccd.mean():.4f} | a_q_weighted: {a_q_weighted.mean():.4f} | a_s_weighted: {a_s_weighted.mean():.4f} | a_ccd_weighted: {a_ccd_weighted.mean():.4f} | Time: {time.time() - start_time:.2f}s")
+            if args.debug:
+                print("\n" + "=" * 80)
+                print("PROMPT:\n", prompt)
+                print("\nPOLICY ACTIONS (block_len - 1):")
+                for rollout in rollouts:
+                    print(rollout.policy_actions)
+                print("\nBLOCK LENGTHS:")
+                for rollout in rollouts:
+                    print(rollout.block_lens)
+                print("\nGENERATED TEXTS:")
+                for rollout in rollouts:
+                    print(gen_text.strip())
+                print("=" * 80 + "\n")
             if use_wandb:
                 wandb.log({
                     "Train/a_total": a_total.mean().item(),
