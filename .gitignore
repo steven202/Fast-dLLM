@@ -8,5 +8,7 @@ dream/evals_results/
 .DS_Store
 **/.DS_Store
 log
-wandb_logs
+wandb_log
 checkpoints
+train_log
+wandb_logs
