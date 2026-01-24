@@ -14,160 +14,25 @@ import argparse
 import os
 import math
 import time
-import sys
-import re
-import random
 import datetime
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from utils.helpers import set_seed, str2bool
+from utils.aligner import StaticTokenAligner
+from utils.eval_utils import is_correct_smart
+from utils.logging_utils import setup_logging
+from utils.data_utils import load_prompts
+from utils.model_utils import get_mask_id
 
 from llada.model.modeling_llada import LLaDAModelLM
 from dream.model.modeling_dream import DreamModel
 from tqdm import tqdm
 
-class StaticTokenAligner:
-    """
-    Optimized Aligner: Pre-computes the mapping table on CPU once, 
-    then performs O(1) lookups on GPU during training.
-    """
-    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda"):
-        self.device = device
-        print("Pre-computing Token Alignment Tables (This takes ~30s)...")
-        # Src -> Tgt (For Logits: Guidance -> Backbone)
-        self.logit_map = self._build_mapping(src_tokenizer, tgt_tokenizer, "Aligning Logits")
-        # Tgt -> Src (For Inputs: Backbone -> Guidance)
-        self.input_map = self._build_mapping(tgt_tokenizer, src_tokenizer, "Aligning Inputs")
-        
-    def _build_mapping(self, src_tok, tgt_tok, desc):
-        # 1. Create a tensor filled with -1 (meaning "no mapping")
-        vocab_size = src_tok.vocab_size
-        mapping = torch.full((vocab_size,), -1, dtype=torch.long)
-        
-        # 2. Iterate over the entire vocabulary once
-        src_vocab = src_tok.get_vocab()
-        
-        # We perform string processing on CPU here (Offline phase)
-        for token, src_id in tqdm(src_vocab.items(), desc=desc):
-            if src_id >= vocab_size: continue
-            
-            # Handle special tokens carefully
-            if token in src_tok.all_special_tokens:
-                continue 
-                
-            # Decode -> Encode
-            # Note: handle the "Ġ" prefix for BPE tokenizers by converting to string properly
-            text = src_tok.convert_tokens_to_string([token])
-            
-            # Try to find exact match in target
-            tgt_ids = tgt_tok.encode(text, add_special_tokens=False)
-            
-            # Only accept 1-to-1 mappings for simplicity and speed
-            if len(tgt_ids) == 1:
-                mapping[src_id] = tgt_ids[0]
-                
-        # Move the table to GPU memory
-        return mapping.to(self.device)
-
-    def translate_input(self, tgt_ids: torch.Tensor) -> torch.Tensor:
-        """
-        Maps Backbone IDs (Tgt) -> Guidance IDs (Src) for input.
-        """
-        max_id = self.input_map.size(0)
-        valid_mask = (tgt_ids < max_id)
-        safe_ids = torch.where(valid_mask, tgt_ids, torch.tensor(0, device=self.device))
-        
-        mapped_ids = self.input_map[safe_ids]
-        
-        # If no mapping (-1) or invalid input, use 0 (UNK/PAD assumption)
-        out_ids = torch.where((mapped_ids != -1) & valid_mask, mapped_ids, torch.tensor(0, device=self.device))
-        return out_ids
-
-    def align(self, src_logits: torch.Tensor, tgt_vocab_size: int, topk: int = 50) -> torch.Tensor:
-        """
-        Pure GPU operation.
-        src_logits: [batch, src_vocab]
-        """
-        # 1. Get Top-K from Source (GPU)
-        probs = torch.softmax(src_logits, dim=-1)
-        topk_probs, topk_src_ids = probs.topk(topk, dim=-1)
-        
-        # [FIX] Guard against src_ids out of bounds for the mapping table
-        max_src_id = self.logit_map.size(0)
-        valid_src_mask = (topk_src_ids < max_src_id)
-        
-        # Use a safe index for lookup where invalid (index 0), we will filter later using valid_src_mask
-        safe_src_ids = torch.where(valid_src_mask, topk_src_ids, torch.tensor(0, device=self.device))
-        
-        # 2. Fast Lookup via Tensor Indexing (GPU)
-        topk_tgt_ids = self.logit_map[safe_src_ids]
-        
-        # 3. Create Target Logits (Sparse)
-        # Initialize with -inf
-        batch_size = src_logits.size(0)
-        tgt_logits = torch.full((batch_size, tgt_vocab_size), float('-inf'), device=self.device, dtype=src_logits.dtype)
-        
-        # 4. Scatter values into target logits
-        # We need to filter out:
-        # - -1 (no valid mapping)
-        # - IDs >= tgt_vocab_size (out of bounds for target)
-        # - Invalid source IDs (out of bounds for mapping table)
-        valid_mask = (topk_tgt_ids != -1) & (topk_tgt_ids < tgt_vocab_size) & valid_src_mask
-        
-        # Since we usually run with batch_size=1 during rollout, optimized path:
-        if batch_size == 1:
-            flat_indices = topk_tgt_ids[valid_mask]
-            flat_values = topk_probs[valid_mask]
-            
-            # Log space for logits
-            log_vals = torch.log(flat_values + 1e-10)
-            
-            # Scatter max to handle collisions
-            if flat_indices.numel() > 0:
-                tgt_logits[0].scatter_reduce_(0, flat_indices, log_vals, reduce='max', include_self=False)
-        else:
-            # General batch implementation
-            for b in range(batch_size):
-                mask_b = valid_mask[b]
-                if mask_b.any():
-                    idx = topk_tgt_ids[b][mask_b]
-                    val = torch.log(topk_probs[b][mask_b] + 1e-10)
-                    tgt_logits[b].scatter_reduce_(0, idx, val, reduce='max', include_self=False)
-
-        return tgt_logits
-
-# --- Logger Class ---
-class Tee(object):
-    def __init__(self, *files):
-        self.files = files
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-            f.flush() # Ensure immediate write
-    def flush(self):
-        for f in self.files:
-            f.flush()
-
-def setup_logging(log_dir="./train_log"):
-    os.makedirs(log_dir, exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = os.path.join(log_dir, f"train_{timestamp}.log")
-    
-    # Open log file
-    f = open(log_path, 'w', encoding='utf-8')
-    # Backup original stdout
-    original_stdout = sys.stdout
-    # Redirect stdout to both terminal and file
-    sys.stdout = Tee(original_stdout, f)
-    
-    print(f"Logging initialized. Output saved to: {os.path.abspath(log_path)}")
-    return f
 
 @dataclass
 class RolloutResult:
@@ -177,129 +42,6 @@ class RolloutResult:
     entropy_ccd: torch.Tensor
     policy_features: List[Tuple[torch.Tensor, torch.Tensor]]
     policy_actions: List[int]
-
-
-def extract_answer_math(text):
-    """Specific extractor for MATH/GSM8K"""
-    # 1. Handle GSM8K style (####)
-    if "####" in text:
-        return text.split("####")[-1].strip().replace(',', '')
-    
-    # 2. Handle MATH style (\boxed{})
-    # Find the last occurrence of \boxed{...}
-    boxed_matches = re.findall(r'\\boxed\{(.*?)\}', text)
-    if boxed_matches:
-        return boxed_matches[-1]
-        
-    # 3. Fallback: Find last number
-    matches = re.findall(r'-?\d+\.?\d*', text.replace(',', ''))
-    if matches:
-        return matches[-1]
-    return None
-
-def normalize_code(code):
-    """Strip whitespace, comments, and imports for comparison"""
-    # Simple normalization: remove all whitespace to compare logic structure
-    return re.sub(r'\s+', '', code).strip()
-
-def is_correct_smart(pred, gold, dataset_type):
-    """Polymorphic evaluator"""
-    try:
-        if dataset_type in ["gsm8k", "math"]:
-            pred_val = extract_answer_math(pred)
-            gold_val = extract_answer_math(gold)
-            if pred_val is None or gold_val is None:
-                return False
-            # Check for float equality
-            return abs(float(pred_val) - float(gold_val)) < 1e-6
-            
-        elif dataset_type in ["humaneval", "mbpp"]:
-            # For code, Exact Match is very harsh. 
-            # We usually rely on NLL reward for code training.
-            # But for logging accuracy, we try normalized string match.
-            return normalize_code(pred) == normalize_code(gold)
-            
-    except:
-        # If conversion to float fails (e.g. comparing "5" to "x=5"), return False
-        return False
-    return False
-
-
-def load_prompts(dataset_names: List[str], max_samples: Optional[int] = None) -> List[dict]:
-    """
-    Loads and normalizes multiple datasets.
-    Returns a list of dicts: {"prompt": str, "answer": str, "dataset": str}
-    """
-    all_prompts = []
-    
-    for d_name in dataset_names:
-        dataset_data = []
-        try:
-            if d_name == "gsm8k":
-                ds = load_dataset("gsm8k", "main", split="train")
-                for item in ds:
-                    dataset_data.append({
-                        "prompt": item["question"], 
-                        "answer": item["answer"], 
-                        "dataset": "gsm8k"
-                    })
-            
-            elif d_name == "math":
-                ds = load_dataset("hendrycks/competition_math", split="train")
-                for item in ds:
-                    dataset_data.append({
-                        "prompt": item["problem"], 
-                        "answer": item["solution"], 
-                        "dataset": "math"
-                    })
-            
-            elif d_name == "humaneval":
-                ds = load_dataset("openai_humaneval", split="test")
-                for item in ds:
-                    dataset_data.append({
-                        "prompt": item["prompt"], 
-                        "answer": item["canonical_solution"], 
-                        "dataset": "humaneval"
-                    })
-
-            elif d_name == "mbpp":
-                # MBPP often needs 'sanitized' split for cleaner code
-                ds = load_dataset("mbpp", "sanitized", split="train")
-                for item in ds:
-                    # Construct a prompt that looks like code comments
-                    prompt_text = f'"""\n{item["text"]}\n"""\n'
-                    dataset_data.append({
-                        "prompt": prompt_text, 
-                        "answer": item["code"], 
-                        "dataset": "mbpp"
-                    })
-            
-            print(f"Loaded {len(dataset_data)} samples from {d_name}.")
-            all_prompts.extend(dataset_data)
-
-        except Exception as e:
-            print(f"Error loading {d_name}: {e}")
-
-    # Shuffle mixed datasets to prevent catastrophic forgetting
-    random.shuffle(all_prompts)
-
-    if not all_prompts:
-        all_prompts = [{"prompt": "Explain the theory of relativity.", "answer": "N/A", "dataset": "k"}] # Fallback
-
-    if max_samples is not None:
-        all_prompts = all_prompts[:max_samples]
-        
-    return all_prompts
-
-
-def get_mask_id(model_type: str, model) -> int:
-    if hasattr(model, "config") and hasattr(model.config, "mask_token_id") and model.config.mask_token_id is not None:
-        return model.config.mask_token_id
-    if hasattr(model, "generation_config") and hasattr(model.generation_config, "mask_token_id") and model.generation_config.mask_token_id is not None:
-        return model.generation_config.mask_token_id
-    if model_type == "llada":
-        return 126336
-    raise ValueError("Unable to infer mask token id.")
 
 
 def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: torch.Tensor) -> torch.Tensor:
@@ -895,6 +637,10 @@ def main():
         for i, item in enumerate(tqdm(prompts, desc="Prompts")):
             prompt = item["prompt"]
             answer = item["answer"]
+            
+            # Pre-compute reward cache
+            prompt_cache = prepare_reward_cache(reward_model, reward_tokenizer, prompt, device)
+
             start_time = time.time()
             rollouts: List[RolloutResult] = []
             r_qual_list = []
@@ -945,7 +691,7 @@ def main():
                     correct_count += 1
                 total_count += 1
 
-                nll = compute_reward_nll(reward_model, reward_tokenizer, prompt, gen_text, device=device)
+                nll = compute_reward_nll(reward_model, reward_tokenizer, prompt_cache, gen_text, device=device)
                 r_qual = torch.exp(-nll)
                 r_acc = torch.tensor(1.0 if is_right else 0.0, device=device)
                 r_speed = compute_r_speed(rollout.block_lens, args.block_len_min, args.block_len_max, device=device)
