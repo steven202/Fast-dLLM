@@ -1134,7 +1134,7 @@ class LLaDAOutput(NamedTuple):
 class BlockPolicyNet(nn.Module):
     def __init__(self, dim: int, max_len: int):
         super().__init__()
-        self.fc1 = nn.Linear(dim + 1, 256)
+        self.fc1 = nn.Linear(dim + 2, 256)
         self.fc2 = nn.Linear(256, max_len)
         self.act = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
@@ -1143,12 +1143,16 @@ class BlockPolicyNet(nn.Module):
         self,
         hidden_states: torch.Tensor,
         entropy: torch.Tensor,
+        guidance_entropy: Optional[torch.Tensor] = None,
         deterministic: bool = True,
     ) -> torch.Tensor:
         if hidden_states.dim() == 3:
             hidden_states = hidden_states[:, -1, :]
         entropy = entropy.view(entropy.size(0), 1)
-        x = torch.cat([hidden_states, entropy], dim=-1)
+        if guidance_entropy is None:
+             guidance_entropy = torch.zeros_like(entropy)
+        guidance_entropy = guidance_entropy.view(guidance_entropy.size(0), 1)
+        x = torch.cat([hidden_states, entropy, guidance_entropy], dim=-1)
         logits = self.fc2(self.act(self.fc1(x)))
         probs = self.softmax(logits)
         if deterministic:

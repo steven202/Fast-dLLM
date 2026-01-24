@@ -40,22 +40,23 @@ class RolloutResult:
     block_lens: List[int]
     logprob: torch.Tensor
     entropy_ccd: torch.Tensor
-    policy_features: List[Tuple[torch.Tensor, torch.Tensor]]
+    policy_features: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
     policy_actions: List[int]
 
 
-def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: torch.Tensor) -> torch.Tensor:
+def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: torch.Tensor, guidance_entropy: torch.Tensor) -> torch.Tensor:
     if hidden.dim() == 3:
         hidden = hidden[:, -1, :]
     # [FIX] Force entropy to match hidden dtype (BFloat16) to avoid matmul error
     # entropy = entropy.to(dtype=hidden.dtype)
     entropy = entropy.view(entropy.size(0), 1)
-    x = torch.cat([hidden, entropy], dim=-1)
+    guidance_entropy = guidance_entropy.view(guidance_entropy.size(0), 1)
+    x = torch.cat([hidden, entropy, guidance_entropy], dim=-1)
     x = policy_net.act(policy_net.fc1(x))
     return policy_net.fc2(x)
 
 
-def sample_block_len(policy_net, hidden: torch.Tensor, entropy: torch.Tensor, min_len: int, max_len: int) -> Tuple[int, torch.Tensor]:
+def sample_block_len(policy_net, hidden: torch.Tensor, entropy: torch.Tensor, guidance_entropy: torch.Tensor, min_len: int, max_len: int) -> Tuple[int, torch.Tensor]:
     # [FIX] Sanitize inputs: replace NaN/Inf with 0 to prevent network pollution
     # hidden = torch.nan_to_num(hidden, nan=0.0, posinf=0.0, neginf=0.0)
     # entropy = torch.nan_to_num(entropy, nan=0.0, posinf=0.0, neginf=0.0)
@@ -63,7 +64,7 @@ def sample_block_len(policy_net, hidden: torch.Tensor, entropy: torch.Tensor, mi
     # Ensure dtype match (in case entropy is float32 and hidden is bfloat16)
     # entropy = entropy.to(hidden.dtype)
 
-    logits = policy_logits(policy_net, hidden, entropy)
+    logits = policy_logits(policy_net, hidden, entropy, guidance_entropy)
     # [FIX] Sanitize logits: replace NaN in logits to prevent categorical sampling crash
     # logits = torch.nan_to_num(logits, nan=-100.0, posinf=100.0, neginf=-100.0)
 
@@ -185,14 +186,12 @@ def rollout_llada(
         # [FIX] Stable Entropy
         # entropy = torch.distributions.Categorical(logits=last_logits).entropy()
         entropy = compute_sparse_entropy(last_logits, topk=50)
-        
-        block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, block_len_min, block_len_max)
-        block_len = min(block_len, gen_length - current_len)
 
-        steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
-        steps_remaining = max(0, steps_remaining - steps_per_block)
-
+        # Guidance Logic moved up
+        guidance_entropy = torch.tensor(0.0, device=device)
+        ar_logits = None
         guidance_target = None
+
         if ar_guidance_model is not None:
             # Use Static Aligner if attached
             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
@@ -201,23 +200,34 @@ def rollout_llada(
                 
                 # 2. Get Raw Logits from Guidance
                 ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
-                
+                guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
+
                 # 3. Align to Backbone Vocab (GPU Operation)
                 ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
             else:
                 # Fallback: Raw logits + Slicing
-                ar_logits = ar_guidance_model(context_ids).logits[:, -1, :]
-                if ar_logits.shape[-1] > backbone_vocab_size:
-                    ar_logits = ar_logits[:, :backbone_vocab_size]
+                ar_logits_full = ar_guidance_model(context_ids).logits[:, -1, :]
+                guidance_entropy = compute_sparse_entropy(ar_logits_full, topk=50)
+
+                if ar_logits_full.shape[-1] > backbone_vocab_size:
+                    ar_logits = ar_logits_full[:, :backbone_vocab_size]
+                else:
+                    ar_logits = ar_logits_full
 
             guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+        
+        block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, guidance_entropy, block_len_min, block_len_max)
+        block_len = min(block_len, gen_length - current_len)
+
+        steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
+        steps_remaining = max(0, steps_remaining - steps_per_block)
 
         block_start = input_ids.shape[1] + current_len
         block_end = block_start + block_len
 
         block_lens.append(block_len)
         logprobs.append(logprob)
-        policy_features.append((last_hidden.detach(), entropy.detach()))
+        policy_features.append((last_hidden.detach(), entropy.detach(), guidance_entropy.detach()))
         policy_actions.append(block_len - 1)
 
         i = 0
@@ -323,32 +333,39 @@ def rollout_dream(
         # entropy = torch.distributions.Categorical(logits=last_logits).entropy()
         entropy = compute_sparse_entropy(last_logits, topk=50)
 
-        block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, block_len_min, block_len_max)
+        # Guidance Logic moved up
+        guidance_entropy = torch.tensor(0.0, device=device)
+        ar_logits = None
+        guidance_target = None
+        
+        if ar_guidance_model is not None:
+             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
+                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
+                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
+                ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
+             else:
+                ar_logits_full = ar_guidance_model(context_ids).logits[:, -1, :]
+                guidance_entropy = compute_sparse_entropy(ar_logits_full, topk=50)
+                if ar_logits_full.shape[-1] > backbone_vocab_size:
+                    ar_logits = ar_logits_full[:, :backbone_vocab_size]
+                else:
+                    ar_logits = ar_logits_full
+             
+             guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+
+        block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, guidance_entropy, block_len_min, block_len_max)
         block_len = min(block_len, gen_length - current_len)
 
         steps_per_block = max(1, int(round(steps_remaining * block_len / max(1, gen_length - current_len))))
         steps_remaining = max(0, steps_remaining - steps_per_block)
-
-        guidance_target = None
-        if ar_guidance_model is not None:
-            if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
-                # Use Static Aligner (Translate Input -> Get Logits -> Align Output)
-                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
-                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
-                ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
-            else:
-                ar_logits = ar_guidance_model(context_ids).logits[:, -1, :]
-                if ar_logits.shape[-1] > backbone_vocab_size:
-                    ar_logits = ar_logits[:, :backbone_vocab_size]
-
-            guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
 
         block_start = input_ids.shape[1] + current_len
         block_end = block_start + block_len
 
         block_lens.append(block_len)
         logprobs.append(logprob)
-        policy_features.append((last_hidden.detach(), entropy.detach()))
+        policy_features.append((last_hidden.detach(), entropy.detach(), guidance_entropy.detach()))
         policy_actions.append(block_len - 1)
 
         i = 0
@@ -741,8 +758,8 @@ def main():
             losses = []
             for idx, rollout in enumerate(rollouts):
                 new_logprob = torch.tensor(0.0, device=device)
-                for (hidden, entropy), action in zip(rollout.policy_features, rollout.policy_actions):
-                    logits = policy_logits(policy_net, hidden, entropy)
+                for (hidden, entropy, guidance_entropy), action in zip(rollout.policy_features, rollout.policy_actions):
+                    logits = policy_logits(policy_net, hidden, entropy, guidance_entropy)
                     dist = torch.distributions.Categorical(logits=logits)
                     new_logprob = new_logprob + dist.log_prob(torch.tensor(action, device=device))
 
