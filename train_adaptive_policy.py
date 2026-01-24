@@ -376,7 +376,8 @@ def rollout_llada(
         last_logits = outputs.logits[:, -1, :]
         
         # [FIX] Stable Entropy
-        entropy = torch.distributions.Categorical(logits=last_logits).entropy()
+        # entropy = torch.distributions.Categorical(logits=last_logits).entropy()
+        entropy = compute_sparse_entropy(last_logits, topk=50)
         
         block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, block_len_min, block_len_max)
         block_len = min(block_len, gen_length - current_len)
@@ -512,7 +513,8 @@ def rollout_dream(
         last_logits = outputs.logits[:, -1, :]
         
         # [FIX] Stable Entropy
-        entropy = torch.distributions.Categorical(logits=last_logits).entropy()
+        # entropy = torch.distributions.Categorical(logits=last_logits).entropy()
+        entropy = compute_sparse_entropy(last_logits, topk=50)
 
         block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, block_len_min, block_len_max)
         block_len = min(block_len, gen_length - current_len)
@@ -601,6 +603,26 @@ def prepare_reward_cache(reward_model, reward_tokenizer, prompt, device):
     prompt_last_logit = outputs.logits[:, -1, :]
     
     return prompt_last_logit, outputs.past_key_values
+
+def compute_sparse_entropy(logits: torch.Tensor, topk: int = 50) -> torch.Tensor:
+    """
+    Approximates entropy by only considering the top-k most likely tokens.
+    
+    Why this helps:
+    - Standard Entropy: Softmax(128,000) -> Log -> Sum. Very slow on large vocabs.
+    - Sparse Entropy:   TopK(50) -> Softmax(50) -> Log -> Sum. Extremely fast.
+    
+    The Categorical distribution automatically renormalizes the Top-K logits
+    so they sum to 1, providing a stable "local uncertainty" metric.
+    """
+    # Safety: ensure we don't request more tokens than exist
+    k = min(topk, logits.size(-1))
+    
+    # 1. Get Top-K values (We don't need the indices)
+    top_logits, _ = logits.topk(k, dim=-1)
+    
+    # 2. Compute entropy on this smaller subset
+    return torch.distributions.Categorical(logits=top_logits).entropy()
 
 def compute_reward_nll(
     reward_model, 
