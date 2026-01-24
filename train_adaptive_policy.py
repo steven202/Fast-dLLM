@@ -107,7 +107,7 @@ def get_transfer_index(
     logits_with_noise = logits
     x0 = torch.argmax(logits_with_noise, dim=-1)
 
-    p = F.softmax(logits.to(torch.float64), dim=-1)
+    p = F.softmax(logits.to(torch.float32), dim=-1)
     x0_p = torch.gather(p, dim=-1, index=x0.unsqueeze(-1)).squeeze(-1)
 
     x0 = torch.where(mask_index, x0, x)

@@ -22,7 +22,10 @@ import os
 import math
 from typing import Optional
 from transformers import AutoTokenizer, AutoModel
-from model.modeling_llada import LLaDAModelLM
+try:
+    from model.modeling_llada import LLaDAModelLM
+except ImportError:
+    from llada.model.modeling_llada import LLaDAModelLM
 
 from torch.cuda import nvtx
 

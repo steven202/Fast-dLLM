@@ -33,8 +33,12 @@ from lm_eval.api.registry import register_model
 from tqdm import tqdm
 import os
 from transformers import AutoTokenizer, AutoModel, AutoConfig, AutoModelForCausalLM
-from generate import generate, generate_with_prefix_cache, generate_with_dual_cache
-from model.modeling_llada import LLaDAModelLM
+try:
+    from generate import generate, generate_with_prefix_cache, generate_with_dual_cache
+    from model.modeling_llada import LLaDAModelLM
+except ImportError:
+    from llada.generate import generate, generate_with_prefix_cache, generate_with_dual_cache
+    from llada.model.modeling_llada import LLaDAModelLM
 import json
 import time
 def set_seed(seed):

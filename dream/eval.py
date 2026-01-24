@@ -34,12 +34,30 @@ from lm_eval import utils
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
 from lm_eval.api.registry import register_model
-from lm_eval.models.utils import get_dtype
+# from lm_eval.models.utils import get_dtype
 from lm_eval.__main__ import cli_evaluate
-from model.generation_utils_block import DreamGenerationMixin
+try:
+    from model.generation_utils_block import DreamGenerationMixin
+except ImportError:
+    from dream.model.generation_utils_block import DreamGenerationMixin
 import types
-from model.configuration_dream import DreamConfig
-from model.modeling_dream import DreamModel
+
+def get_dtype(dtype: str):
+    if isinstance(dtype, str) and dtype != "auto":
+        if dtype == "float32":
+           return torch.float32
+        elif dtype == "float16":
+            return torch.float16
+        elif dtype == "bfloat16":
+             return torch.bfloat16
+    return dtype
+
+try:
+    from model.configuration_dream import DreamConfig
+    from model.modeling_dream import DreamModel
+except ImportError:
+    from dream.model.configuration_dream import DreamConfig
+    from dream.model.modeling_dream import DreamModel
 import time
 import os
 import json
