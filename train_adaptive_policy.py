@@ -48,9 +48,10 @@ def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: to
     if hidden.dim() == 3:
         hidden = hidden[:, -1, :]
     # [FIX] Force entropy to match hidden dtype (BFloat16) to avoid matmul error
-    # entropy = entropy.to(dtype=hidden.dtype)
-    entropy = entropy.view(entropy.size(0), 1)
-    guidance_entropy = guidance_entropy.view(guidance_entropy.size(0), 1)
+    entropy = entropy.to(dtype=hidden.dtype).view(entropy.size(0), 1)
+    if guidance_entropy.dim() == 0:
+        guidance_entropy = guidance_entropy.unsqueeze(0)
+    guidance_entropy = guidance_entropy.to(dtype=hidden.dtype).view(guidance_entropy.size(0), 1)
     x = torch.cat([hidden, entropy, guidance_entropy], dim=-1)
     x = policy_net.act(policy_net.fc1(x))
     return policy_net.fc2(x)

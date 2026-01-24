@@ -1585,7 +1585,8 @@ def create_model_config_from_pretrained_config(config: LLaDAConfig):
 
     kwargs = {}
     for field in fields(ModelConfig):
-        kwargs[field.name] = getattr(config, field.name)
+        if hasattr(config, field.name):
+            kwargs[field.name] = getattr(config, field.name)
 
     model_config = ModelConfig(**kwargs)
     return model_config
