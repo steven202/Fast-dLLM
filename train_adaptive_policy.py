@@ -521,11 +521,12 @@ def _sanitize_ckpt_segment(value: str) -> str:
     return value
 
 
-def build_checkpoint_name(args) -> str:
+def build_checkpoint_name(args, timestamp: Optional[str] = None) -> str:
     datasets_part = "-".join(args.datasets) if args.datasets else "unknown"
     guidance_part = _sanitize_ckpt_segment(args.ar_guidance_model or "none")
     reward_part = _sanitize_ckpt_segment(args.ar_reward_model or "none")
-    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}.pt"
+    time_part = timestamp or datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}_{time_part}.pt"
 
 def main():
     parser = argparse.ArgumentParser()
@@ -581,10 +582,11 @@ def main():
             print(f"Selected Guidance for Dream: {args.ar_guidance_model}")
     # ---------------------------------------------------
 
+    run_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.save_path is None:
-        args.save_path = build_checkpoint_name(args)
+        args.save_path = build_checkpoint_name(args, timestamp=run_timestamp)
     if args.load_path is None:
-        args.load_path = build_checkpoint_name(args)
+        args.load_path = build_checkpoint_name(args, timestamp=run_timestamp)
 
     train_run_name = os.path.splitext(os.path.basename(args.save_path))[0]
     setup_logging(run_name=train_run_name)
@@ -627,8 +629,20 @@ def main():
             print("Warning: Model parameters contain NaN or Inf. Skipping loading policy.")
         else:
             print(f"Loading policy from {os.path.abspath(args.load_path)}")
-            policy_net.load_state_dict(torch.load(args.load_path, map_location=device))
+            checkpoint = torch.load(args.load_path, map_location=device)
+            if isinstance(checkpoint, dict) and "policy_state_dict" in checkpoint:
+                policy_net.load_state_dict(checkpoint["policy_state_dict"])
+            else:
+                policy_net.load_state_dict(checkpoint)
     optimizer = torch.optim.AdamW(policy_net.parameters(), lr=args.lr)
+    if args.resume and args.load_path and os.path.exists(args.load_path):
+        checkpoint = torch.load(args.load_path, map_location=device)
+        if isinstance(checkpoint, dict) and "optimizer_state_dict" in checkpoint:
+            try:
+                optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+                print("Optimizer state loaded.")
+            except Exception as e:
+                print(f"Warning: failed to load optimizer state: {e}")
 
     ar_guidance_model = AutoModelForCausalLM.from_pretrained(
         args.ar_guidance_model,
@@ -833,7 +847,15 @@ def main():
                 })
             if i == 0 or (i + 1) % 10 == 0:
                 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
-                torch.save(policy_net.state_dict(), args.save_path)
+                torch.save(
+                    {
+                        "policy_state_dict": policy_net.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "args": vars(args),
+                        "saved_at": datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    },
+                    args.save_path,
+                )
 
     if use_wandb:
         wandb.finish()

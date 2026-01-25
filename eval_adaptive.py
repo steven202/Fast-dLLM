@@ -121,7 +121,11 @@ def infer_dataset_type(doc: dict) -> str:
 
 def load_policy_weights(model, policy_path, model_type):
     eval_logger.info(f"Loading policy from {policy_path}...")
-    state_dict = torch.load(policy_path, map_location=model.device)
+    checkpoint = torch.load(policy_path, map_location=model.device)
+    if isinstance(checkpoint, dict) and "policy_state_dict" in checkpoint:
+        state_dict = checkpoint["policy_state_dict"]
+    else:
+        state_dict = checkpoint
     
     if model_type == "llada":
         if hasattr(model, "model") and hasattr(model.model, "block_policy"):
