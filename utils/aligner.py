@@ -146,7 +146,7 @@ class RobustTokenAligner:
 
         return mapping
 
-    def translate_input(self, tgt_ids: torch.Tensor, return_attention_mask: bool = False):
+    def translate_input(self, tgt_ids: torch.Tensor) -> torch.Tensor:
         """
         Robust Input Translation (Backbone IDs -> Guidance IDs).
         Uses Decode -> Encode to handle token splitting correctly.
@@ -159,10 +159,15 @@ class RobustTokenAligner:
         text_batch = self.tgt_tokenizer.batch_decode(tgt_ids_list, skip_special_tokens=True)
         
         # 2. Re-encode using Guidance Tokenizer
-        encodings = self.src_tokenizer(text_batch, return_tensors="pt", padding=True, add_special_tokens=False)
+        encodings = self.src_tokenizer(
+            text_batch,
+            return_tensors="pt",
+            padding=False,
+            add_special_tokens=False,
+            return_attention_mask=False,
+        )
         input_ids = encodings.input_ids.to(self.device)
-        attention_mask = encodings.attention_mask.to(self.device)
-        return (input_ids, attention_mask) if return_attention_mask else input_ids
+        return input_ids
 
     def align_logits(self, src_logits: torch.Tensor, tgt_vocab_size: int, topk: int = 50) -> torch.Tensor:
         """
@@ -201,7 +206,7 @@ class CachedTokenAligner:
     Pre-computes ALL token translations into a GPU Lookup Table.
     Eliminates CPU String operations during training.
     """
-    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda", max_fragments=4, max_tgt_tokens=4):
+    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda", max_fragments=2, max_tgt_tokens=2):
         self.device = device
         self.src_tokenizer = src_tokenizer # Guidance
         self.tgt_tokenizer = tgt_tokenizer # Backbone
@@ -268,7 +273,7 @@ class CachedTokenAligner:
                 
         return ids.to(self.device), lens.to(self.device)
 
-    def translate_input(self, tgt_ids: torch.Tensor, return_attention_mask: bool = False):
+    def translate_input(self, tgt_ids: torch.Tensor) -> torch.Tensor:
         """
         PURE GPU Operation.
         Maps Backbone Context -> Guidance Context.
@@ -296,9 +301,6 @@ class CachedTokenAligner:
         # For RL rollouts (Batch=1), return compact sequence
         if B == 1:
             seq = fragments[mask].unsqueeze(0)
-            if return_attention_mask:
-                attn = torch.ones_like(seq, dtype=torch.long, device=self.device)
-                return seq, attn
             return seq
         
         # For B > 1, we must handle ragged tensors (complex). 
@@ -331,7 +333,7 @@ class CachedTokenAligner:
                 padded[b, :seq_b.numel()] = seq_b
                 attn[b, :seq_b.numel()] = 1
 
-        return (padded, attn) if return_attention_mask else padded
+        return padded
 
     def align_logits(self, src_logits: torch.Tensor, tgt_vocab_size: int, topk: int = 50) -> torch.Tensor:
         """

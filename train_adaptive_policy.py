@@ -202,17 +202,10 @@ def rollout_llada(
             # Use Static Aligner if attached
             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
                 # 1. Translate Context (Backbone -> Guidance)
-                ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
-                if isinstance(ar_inputs, tuple):
-                    ar_input_ids, ar_attention_mask = ar_inputs
-                else:
-                    ar_input_ids, ar_attention_mask = ar_inputs, None
+                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
                 
                 # 2. Get Raw Logits from Guidance
-                if ar_attention_mask is not None:
-                    ar_logits_src = ar_guidance_model(ar_input_ids, attention_mask=ar_attention_mask).logits[:, -1, :]
-                else:
-                    ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
 
                 # 3. Align to Backbone Vocab (GPU Operation)
@@ -355,15 +348,8 @@ def rollout_dream(
         
         if ar_guidance_model is not None:
              if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
-                ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
-                if isinstance(ar_inputs, tuple):
-                    ar_input_ids, ar_attention_mask = ar_inputs
-                else:
-                    ar_input_ids, ar_attention_mask = ar_inputs, None
-                if ar_attention_mask is not None:
-                    ar_logits_src = ar_guidance_model(ar_input_ids, attention_mask=ar_attention_mask).logits[:, -1, :]
-                else:
-                    ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
+                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
                 ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
              else:
@@ -543,7 +529,7 @@ def build_checkpoint_name(args, timestamp: Optional[str] = None) -> str:
     datasets_part = "-".join(args.datasets) if args.datasets else "unknown"
     guidance_part = _sanitize_ckpt_segment(args.ar_guidance_model or "none")
     reward_part = _sanitize_ckpt_segment(args.ar_reward_model or "none")
-    aligner_part = _sanitize_ckpt_segment(args.aligner_type or "cached")
+    aligner_part = _sanitize_ckpt_segment(args.aligner_type or "static")
     time_part = timestamp or datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}_{aligner_part}_{time_part}.pt"
 
@@ -575,7 +561,7 @@ def main():
 
     parser.add_argument("--guidance_gamma", type=float, default=0.5)
     parser.add_argument("--guidance_temperature", type=float, default=0.5)
-    parser.add_argument("--aligner_type", choices=["static", "robust", "cached"], default="cached")
+    parser.add_argument("--aligner_type", choices=["static", "robust", "cached"], default="static")
 
     parser.add_argument("--w1", type=float, default=1.0)
     parser.add_argument("--w2", type=float, default=0.0)
@@ -595,8 +581,8 @@ def main():
     if args.ar_guidance_model is None:
         if args.model_type == "llada":
             # args.ar_guidance_model = "meta-llama/Llama-3.2-1B-Instruct"
-            # args.ar_guidance_model = "facebook/MobileLLM-R1.5-140M"
-            args.ar_guidance_model = "Qwen/Qwen3-0.6B"
+            args.ar_guidance_model = "facebook/MobileLLM-R1.5-140M"
+            # args.ar_guidance_model = "Qwen/Qwen3-0.6B"
             print(f"Selected Guidance for LLaDA: {args.ar_guidance_model}")
         elif args.model_type == "dream":
             args.ar_guidance_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"

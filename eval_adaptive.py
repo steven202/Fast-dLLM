@@ -60,7 +60,7 @@ def build_eval_run_name(
     policy_part = _sanitize_name_segment(os.path.splitext(os.path.basename(policy_path))[0])
     pretrained_part = _sanitize_name_segment(pretrained)
     guidance_part = _sanitize_name_segment(guidance_model_name or "none")
-    aligner_part = _sanitize_name_segment(aligner_type or "cached")
+    aligner_part = _sanitize_name_segment(aligner_type or "static")
     return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_{aligner_part}_L{gen_length}_S{steps}_B{block_len_max}"
 
 
@@ -171,7 +171,7 @@ class AdaptiveBase(LM):
         threshold: float = 0.9,
         guidance_gamma: float = 0.5,
         guidance_temperature: float = 0.5,
-        aligner_type: str = "cached",
+        aligner_type: str = "static",
         # CLI compatibility args (may not be used but passed by scripts)
         use_cache: bool = False,
         dual_cache: bool = False,

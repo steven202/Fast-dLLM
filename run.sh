@@ -10,7 +10,8 @@ LOG_FILE="$LOG_DIR/train_${TIMESTAMP}.log"
 model_type="llada"
 datasets="gsm8k"
 ar_reward_model="Qwen_Qwen3-8B"
-aligner_type="cached"
+# ar_reward_model="mobile140m"
+aligner_type="static"
 
 # Create descriptive log filename
 LOG_FILE="$LOG_DIR/train_${model_type}_${datasets}_${ar_reward_model}_${aligner_type}_${TIMESTAMP}.log"
