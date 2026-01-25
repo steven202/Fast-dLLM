@@ -202,10 +202,17 @@ def rollout_llada(
             # Use Static Aligner if attached
             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
                 # 1. Translate Context (Backbone -> Guidance)
-                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
+                ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
+                if isinstance(ar_inputs, tuple):
+                    ar_input_ids, ar_attention_mask = ar_inputs
+                else:
+                    ar_input_ids, ar_attention_mask = ar_inputs, None
                 
                 # 2. Get Raw Logits from Guidance
-                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                if ar_attention_mask is not None:
+                    ar_logits_src = ar_guidance_model(ar_input_ids, attention_mask=ar_attention_mask).logits[:, -1, :]
+                else:
+                    ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
 
                 # 3. Align to Backbone Vocab (GPU Operation)
@@ -348,8 +355,15 @@ def rollout_dream(
         
         if ar_guidance_model is not None:
              if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
-                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
-                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
+                if isinstance(ar_inputs, tuple):
+                    ar_input_ids, ar_attention_mask = ar_inputs
+                else:
+                    ar_input_ids, ar_attention_mask = ar_inputs, None
+                if ar_attention_mask is not None:
+                    ar_logits_src = ar_guidance_model(ar_input_ids, attention_mask=ar_attention_mask).logits[:, -1, :]
+                else:
+                    ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
                 ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
              else:
