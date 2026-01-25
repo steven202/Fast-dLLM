@@ -354,7 +354,7 @@ def rollout_dream(
         guidance_target = None
         
         if ar_guidance_model is not None:
-             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
+            if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
                 ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
                 if isinstance(ar_inputs, tuple):
                     ar_input_ids, ar_attention_mask = ar_inputs
@@ -366,7 +366,7 @@ def rollout_dream(
                     ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
                 ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
-             else:
+            else:
                 ar_logits_full = ar_guidance_model(context_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_full, topk=50)
                 if ar_logits_full.shape[-1] > backbone_vocab_size:
@@ -374,7 +374,7 @@ def rollout_dream(
                 else:
                     ar_logits = ar_logits_full
              
-             guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
+            guidance_target = model.compute_guidance_target(ar_logits, temperature=guidance_temperature)
 
         block_len, logprob = sample_block_len(policy_net, last_hidden, entropy, guidance_entropy, block_len_min, block_len_max)
         block_len = min(block_len, gen_length - current_len)
@@ -555,7 +555,7 @@ def main():
     # [MODIFIED] Default is None so we can set it dynamically based on model_type
     parser.add_argument("--ar_guidance_model", type=str, default=None)
     
-    parser.add_argument("--ar_reward_model", type=str, choices=["Qwen/Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-8B"], default="Qwen/Qwen3-8B")
+    parser.add_argument("--ar_reward_model", type=str, choices=["Qwen/Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-8B", "Alibaba-Apsara/DASD-4B-Thinking"], default="Qwen/Qwen3-8B")
     parser.add_argument("--reward_offload_dir", type=str, default="./offload_reward")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--seed", type=int, default=42)
@@ -595,8 +595,9 @@ def main():
     if args.ar_guidance_model is None:
         if args.model_type == "llada":
             # args.ar_guidance_model = "meta-llama/Llama-3.2-1B-Instruct"
-            args.ar_guidance_model = "facebook/MobileLLM-R1.5-140M"
-            # args.ar_guidance_model = "Qwen/Qwen3-0.6B"
+            # args.ar_guidance_model = "facebook/MobileLLM-R1.5-140M"
+            args.ar_guidance_model = "Qwen/Qwen3-0.6B"
+            # args.ar_guidance_model = "Alibaba-Apsara/DASD-4B-Thinking"
             print(f"Selected Guidance for LLaDA: {args.ar_guidance_model}")
         elif args.model_type == "dream":
             args.ar_guidance_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
