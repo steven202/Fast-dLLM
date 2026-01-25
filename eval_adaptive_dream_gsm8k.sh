@@ -20,7 +20,7 @@ trap cleanup SIGINT SIGTERM
 run_eval() {
 	local name="$1"
 	shift
-	local LOG_FILE="$LOG_DIR/eval_${name}_${TIMESTAMP}.log"
+	local LOG_FILE="$LOG_DIR/eval_${name}_${policy_name}_${TIMESTAMP}.log"
 	echo "Logging to $LOG_FILE"
 	"$@" 2>&1 | tee "$LOG_FILE"
 }
@@ -32,6 +32,7 @@ num_fewshot=5
 steps=$((length / block_length))
 model="Dream-org/Dream-v0-Base-7B"
 policy_path='./checkpoints/policy_dream.pt'
+policy_name=$(basename "$policy_path" .pt)
 
 
 # 1. Baseline

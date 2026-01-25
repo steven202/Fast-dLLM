@@ -40,13 +40,36 @@ _LOG_INITIALIZED = False
 _WANDB_INITIALIZED = False
 
 
-def setup_eval_logging(log_dir: str = "./eval_log"):
+def _sanitize_name_segment(value: str) -> str:
+    value = (value or "").strip()
+    for ch in ["/", "\\", ":", " "]:
+        value = value.replace(ch, "_")
+    return value
+
+
+def build_eval_run_name(
+    model_type: str,
+    pretrained: str,
+    policy_path: str,
+    guidance_model_name: Optional[str],
+    gen_length: int,
+    steps: int,
+    block_len_max: int,
+) -> str:
+    policy_part = _sanitize_name_segment(os.path.splitext(os.path.basename(policy_path))[0])
+    pretrained_part = _sanitize_name_segment(pretrained)
+    guidance_part = _sanitize_name_segment(guidance_model_name or "none")
+    return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_L{gen_length}_S{steps}_B{block_len_max}"
+
+
+def setup_eval_logging(log_dir: str = "./eval_log", run_name: Optional[str] = None):
     global _LOG_INITIALIZED, _LOG_FILE
     if _LOG_INITIALIZED:
         return _LOG_FILE
     os.makedirs(log_dir, exist_ok=True)
     timestamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = os.path.join(log_dir, f"eval_{timestamp}.log")
+    safe_run_name = _sanitize_name_segment(run_name or "run")
+    log_path = os.path.join(log_dir, f"eval_{safe_run_name}_{timestamp}.log")
     f = open(log_path, "w", encoding="utf-8")
     original_stdout = sys.stdout
     sys.stdout = Tee(original_stdout, f)
@@ -161,10 +184,19 @@ class AdaptiveBase(LM):
         self.guidance_gamma = float(guidance_gamma)
         self.guidance_temperature = float(guidance_temperature)
         self._wandb = None
+        run_name = build_eval_run_name(
+            model_type=model_type,
+            pretrained=pretrained,
+            policy_path=policy_path,
+            guidance_model_name=guidance_model_name,
+            gen_length=self.gen_length,
+            steps=self.steps,
+            block_len_max=self.block_len_max,
+        )
         if enable_tee:
-            setup_eval_logging(log_dir=log_dir)
+            setup_eval_logging(log_dir=log_dir, run_name=run_name)
         if wandb:
-            self._wandb = init_wandb(project=wandb_project, run_name=wandb_run_name, wandb_dir=wandb_dir)
+            self._wandb = init_wandb(project=wandb_project, run_name=wandb_run_name or run_name, wandb_dir=wandb_dir)
         
         # Load Model
         eval_logger.info(f"Loading {model_type} model: {pretrained}")
@@ -196,6 +228,8 @@ class AdaptiveBase(LM):
             if model_type == "llada":
                 # guidance_model_name = "meta-llama/Llama-3.2-1B-Instruct"
                 guidance_model_name = "Qwen/Qwen3-0.6B"
+                # guidance_model_name = "pytorch/Phi-4-mini-instruct-INT4"
+                # guidance_model_name = "HuggingFaceTB/SmolLM2-1.7B"
             elif model_type == "dream":
                 guidance_model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
