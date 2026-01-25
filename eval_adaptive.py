@@ -52,6 +52,7 @@ def build_eval_run_name(
     pretrained: str,
     policy_path: str,
     guidance_model_name: Optional[str],
+    aligner_type: str,
     gen_length: int,
     steps: int,
     block_len_max: int,
@@ -59,7 +60,8 @@ def build_eval_run_name(
     policy_part = _sanitize_name_segment(os.path.splitext(os.path.basename(policy_path))[0])
     pretrained_part = _sanitize_name_segment(pretrained)
     guidance_part = _sanitize_name_segment(guidance_model_name or "none")
-    return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_L{gen_length}_S{steps}_B{block_len_max}"
+    aligner_part = _sanitize_name_segment(aligner_type or "cached")
+    return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_{aligner_part}_L{gen_length}_S{steps}_B{block_len_max}"
 
 
 def setup_eval_logging(log_dir: str = "./eval_log", run_name: Optional[str] = None):
@@ -169,6 +171,7 @@ class AdaptiveBase(LM):
         threshold: float = 0.9,
         guidance_gamma: float = 0.5,
         guidance_temperature: float = 0.5,
+        aligner_type: str = "cached",
         # CLI compatibility args (may not be used but passed by scripts)
         use_cache: bool = False,
         dual_cache: bool = False,
@@ -193,6 +196,7 @@ class AdaptiveBase(LM):
             pretrained=pretrained,
             policy_path=policy_path,
             guidance_model_name=guidance_model_name,
+            aligner_type=aligner_type,
             gen_length=self.gen_length,
             steps=self.steps,
             block_len_max=self.block_len_max,
@@ -247,6 +251,22 @@ class AdaptiveBase(LM):
             self.ar_guidance_model.eval()
         else:
             eval_logger.info(f"Warning: guidance model not exists!")
+
+        # Attach aligner if guidance model exists
+        if self.ar_guidance_model is not None:
+            try:
+                from utils.aligner import StaticTokenAligner, RobustTokenAligner, CachedTokenAligner
+                ar_tokenizer = AutoTokenizer.from_pretrained(guidance_model_name, trust_remote_code=True)
+                if aligner_type == "static":
+                    aligner = StaticTokenAligner(ar_tokenizer, self.tokenizer, device=self.device)
+                elif aligner_type == "robust":
+                    aligner = RobustTokenAligner(ar_tokenizer, self.tokenizer, device=self.device)
+                else:
+                    aligner = CachedTokenAligner(ar_tokenizer, self.tokenizer, device=self.device)
+                self.ar_guidance_model.logit_aligner = aligner
+                eval_logger.info(f"Attached {aligner_type} aligner to guidance model.")
+            except Exception as e:
+                eval_logger.warning(f"Could not attach aligner: {e}")
 
         if use_cache or dual_cache:
             eval_logger.warning("Prefix/Dual Cache requested but Adaptive Policy rollout does not strictly implement KV-caching yet. Running standard adaptive rollout.")

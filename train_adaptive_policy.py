@@ -23,7 +23,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from utils.helpers import set_seed, str2bool
-from utils.aligner import StaticTokenAligner
+from utils.aligner import StaticTokenAligner, RobustTokenAligner, CachedTokenAligner
 from utils.eval_utils import is_correct_smart
 from utils.logging_utils import setup_logging
 from utils.data_utils import load_prompts
@@ -109,8 +109,12 @@ def get_transfer_index(
     logits_with_noise = logits
     x0 = torch.argmax(logits_with_noise, dim=-1)
 
-    p = F.softmax(logits.to(torch.float32), dim=-1)
-    x0_p = torch.gather(p, dim=-1, index=x0.unsqueeze(-1)).squeeze(-1)
+    # [MEMORY FIX] Approximate confidence with top-k softmax to avoid full-vocab softmax OOM
+    k = min(50, logits.size(-1))
+    topk_logits, topk_ids = logits.to(torch.float32).topk(k, dim=-1)
+    topk_probs = F.softmax(topk_logits, dim=-1)
+    match = (topk_ids == x0.unsqueeze(-1))
+    x0_p = (topk_probs * match).sum(dim=-1)
 
     x0 = torch.where(mask_index, x0, x)
     neg_inf = torch.tensor(torch.finfo(x0_p.dtype).min, device=x0_p.device, dtype=x0_p.dtype)
@@ -198,10 +202,17 @@ def rollout_llada(
             # Use Static Aligner if attached
             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
                 # 1. Translate Context (Backbone -> Guidance)
-                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
+                ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
+                if isinstance(ar_inputs, tuple):
+                    ar_input_ids, ar_attention_mask = ar_inputs
+                else:
+                    ar_input_ids, ar_attention_mask = ar_inputs, None
                 
                 # 2. Get Raw Logits from Guidance
-                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                if ar_attention_mask is not None:
+                    ar_logits_src = ar_guidance_model(ar_input_ids, attention_mask=ar_attention_mask).logits[:, -1, :]
+                else:
+                    ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
 
                 # 3. Align to Backbone Vocab (GPU Operation)
@@ -344,8 +355,15 @@ def rollout_dream(
         
         if ar_guidance_model is not None:
              if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
-                ar_input_ids = ar_guidance_model.logit_aligner.translate_input(context_ids)
-                ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
+                ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
+                if isinstance(ar_inputs, tuple):
+                    ar_input_ids, ar_attention_mask = ar_inputs
+                else:
+                    ar_input_ids, ar_attention_mask = ar_inputs, None
+                if ar_attention_mask is not None:
+                    ar_logits_src = ar_guidance_model(ar_input_ids, attention_mask=ar_attention_mask).logits[:, -1, :]
+                else:
+                    ar_logits_src = ar_guidance_model(ar_input_ids).logits[:, -1, :]
                 guidance_entropy = compute_sparse_entropy(ar_logits_src, topk=50)
                 ar_logits = ar_guidance_model.logit_aligner.align(ar_logits_src, backbone_vocab_size)
              else:
@@ -525,8 +543,9 @@ def build_checkpoint_name(args, timestamp: Optional[str] = None) -> str:
     datasets_part = "-".join(args.datasets) if args.datasets else "unknown"
     guidance_part = _sanitize_ckpt_segment(args.ar_guidance_model or "none")
     reward_part = _sanitize_ckpt_segment(args.ar_reward_model or "none")
+    aligner_part = _sanitize_ckpt_segment(args.aligner_type or "cached")
     time_part = timestamp or datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}_{time_part}.pt"
+    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}_{aligner_part}_{time_part}.pt"
 
 def main():
     parser = argparse.ArgumentParser()
@@ -556,6 +575,7 @@ def main():
 
     parser.add_argument("--guidance_gamma", type=float, default=0.5)
     parser.add_argument("--guidance_temperature", type=float, default=0.5)
+    parser.add_argument("--aligner_type", choices=["static", "robust", "cached"], default="cached")
 
     parser.add_argument("--w1", type=float, default=1.0)
     parser.add_argument("--w2", type=float, default=0.0)
@@ -653,10 +673,14 @@ def main():
 
     try:
         ar_tokenizer = AutoTokenizer.from_pretrained(args.ar_guidance_model, trust_remote_code=True)
-        # Use the optimized StaticTokenAligner
-        aligner = StaticTokenAligner(ar_tokenizer, tokenizer, device=device)
+        if args.aligner_type == "static":
+            aligner = StaticTokenAligner(ar_tokenizer, tokenizer, device=device)
+        elif args.aligner_type == "robust":
+            aligner = RobustTokenAligner(ar_tokenizer, tokenizer, device=device)
+        else:
+            aligner = CachedTokenAligner(ar_tokenizer, tokenizer, device=device)
         ar_guidance_model.logit_aligner = aligner
-        print("Guidance Tokenizer loaded and Static Aligner attached.")
+        print(f"{args.aligner_type} aligner attached and Guidance Tokenizer loaded.")
     except Exception as e:
         print(f"Warning: Could not load guidance tokenizer: {e}")
         ar_guidance_model.logit_aligner = None
@@ -677,7 +701,7 @@ def main():
         try:
             import wandb as _wandb
             wandb = _wandb
-            wandb.init(project="adaptive-dllm", dir="./wandb_log", config=vars(args), name=f"policy_{args.model_type}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            wandb.init(project="adaptive-dllm", dir="./wandb_log", config=vars(args), name=f"policy_{args.model_type}_{args.aligner_type}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
             if wandb.run is not None:
                 print(f"WandB Run URL: {wandb.run.url}")
                 print(f"WandB Project URL: {wandb.run.project_url}")
