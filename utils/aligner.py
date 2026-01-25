@@ -64,8 +64,8 @@ class StaticTokenAligner:
         src_logits: [batch, src_vocab]
         """
         # 1. Get Top-K from Source (GPU)
-        topk_logits, topk_src_ids = src_logits.topk(topk, dim=-1)
-        topk_probs = torch.softmax(topk_logits, dim=-1)
+        probs = torch.softmax(src_logits, dim=-1)
+        topk_probs, topk_src_ids = probs.topk(topk, dim=-1)
         
         # [FIX] Guard against src_ids out of bounds for the mapping table
         max_src_id = self.logit_map.size(0)
@@ -201,12 +201,12 @@ class CachedTokenAligner:
     Pre-computes ALL token translations into a GPU Lookup Table.
     Eliminates CPU String operations during training.
     """
-    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda", max_fragments=4, logit_max_fragments=4):
+    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda", max_fragments=4, max_tgt_tokens=4):
         self.device = device
         self.src_tokenizer = src_tokenizer # Guidance
         self.tgt_tokenizer = tgt_tokenizer # Backbone
         self.max_fragments = max_fragments # Max tokens a single backbone token splits into
-        self.logit_max_fragments = logit_max_fragments # Max target tokens per source token for logit alignment
+        self.max_tgt_tokens = max_tgt_tokens # Max target tokens per guidance token
         
         print("Pre-computing Full Vocabulary Translation (GPU Cached)...")
         
@@ -253,7 +253,7 @@ class CachedTokenAligner:
         Guidance -> Backbone (Full Target Tokenization)
         """
         vocab_size = self.src_tokenizer.vocab_size
-        cache = torch.full((vocab_size, self.logit_max_fragments), 0, dtype=torch.long)
+        ids = torch.full((vocab_size, self.max_tgt_tokens), 0, dtype=torch.long)
         lens = torch.zeros((vocab_size,), dtype=torch.long)
         src_vocab = self.src_tokenizer.get_vocab()
         
@@ -262,11 +262,11 @@ class CachedTokenAligner:
             text = self.src_tokenizer.convert_tokens_to_string([token])
             tgt_ids = self.tgt_tokenizer.encode(text, add_special_tokens=False)
             if len(tgt_ids) > 0:
-                length = min(len(tgt_ids), self.logit_max_fragments)
-                cache[src_id, :length] = torch.tensor(tgt_ids[:length])
+                length = min(len(tgt_ids), self.max_tgt_tokens)
+                ids[src_id, :length] = torch.tensor(tgt_ids[:length], dtype=torch.long)
                 lens[src_id] = length
-
-        return cache.to(self.device), lens.to(self.device)
+                
+        return ids.to(self.device), lens.to(self.device)
 
     def translate_input(self, tgt_ids: torch.Tensor, return_attention_mask: bool = False):
         """
@@ -343,26 +343,30 @@ class CachedTokenAligner:
         batch_size = src_logits.size(0)
         tgt_logits = torch.full((batch_size, tgt_vocab_size), float('-inf'), device=self.device, dtype=src_logits.dtype)
 
-        # Vectorized scatter using cached mapping tensors
         max_src_id = self.logit_map_ids.size(0)
-        valid_src = (topk_src_ids >= 0) & (topk_src_ids < max_src_id)
-        safe_src_ids = torch.where(valid_src, topk_src_ids, torch.tensor(0, device=self.device))
+        valid_src_mask = (topk_src_ids >= 0) & (topk_src_ids < max_src_id)
+        safe_src_ids = torch.where(valid_src_mask, topk_src_ids, torch.tensor(0, device=self.device))
 
         mapped_ids = self.logit_map_ids[safe_src_ids]  # [B, K, M]
         mapped_lens = self.logit_map_lens[safe_src_ids]  # [B, K]
-        mapped_lens = torch.where(valid_src, mapped_lens, torch.zeros_like(mapped_lens))
         M = mapped_ids.size(-1)
-        valid_pos = (torch.arange(M, device=self.device).view(1, 1, M) < mapped_lens.unsqueeze(-1))
-        valid_pos = valid_pos & (mapped_ids < tgt_vocab_size)
+        token_mask = torch.arange(M, device=self.device).view(1, 1, M) < mapped_lens.unsqueeze(-1)
+        token_mask = token_mask & valid_src_mask.unsqueeze(-1)
+        token_mask = token_mask & (mapped_ids < tgt_vocab_size)
 
         log_vals = torch.log(topk_probs + 1e-10).unsqueeze(-1).expand_as(mapped_ids)
 
-        for b in range(batch_size):
-            mask_b = valid_pos[b]
-            if mask_b.any():
-                idx = mapped_ids[b][mask_b]
-                val = log_vals[b][mask_b]
-                tgt_logits[b].scatter_reduce_(0, idx, val, reduce='max', include_self=False)
+        if batch_size == 1:
+            flat_ids = mapped_ids[0][token_mask[0]]
+            flat_vals = log_vals[0][token_mask[0]]
+            if flat_ids.numel() > 0:
+                tgt_logits[0].scatter_reduce_(0, flat_ids, flat_vals, reduce='max', include_self=False)
+        else:
+            for b in range(batch_size):
+                ids_b = mapped_ids[b][token_mask[b]]
+                vals_b = log_vals[b][token_mask[b]]
+                if ids_b.numel() > 0:
+                    tgt_logits[b].scatter_reduce_(0, ids_b, vals_b, reduce='max', include_self=False)
 
         return tgt_logits
 

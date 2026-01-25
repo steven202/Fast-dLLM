@@ -595,6 +595,7 @@ def main():
     if args.ar_guidance_model is None:
         if args.model_type == "llada":
             # args.ar_guidance_model = "meta-llama/Llama-3.2-1B-Instruct"
+            # args.ar_guidance_model = "facebook/MobileLLM-R1.5-140M"
             args.ar_guidance_model = "Qwen/Qwen3-0.6B"
             print(f"Selected Guidance for LLaDA: {args.ar_guidance_model}")
         elif args.model_type == "dream":
