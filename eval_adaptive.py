@@ -192,6 +192,13 @@ class AdaptiveBase(LM):
         
         # Load Guidance Model if needed
         self.ar_guidance_model = None
+        if guidance_model_name is None:
+            if model_type == "llada":
+                # guidance_model_name = "meta-llama/Llama-3.2-1B-Instruct"
+                guidance_model_name = "Qwen/Qwen3-0.6B"
+            elif model_type == "dream":
+                guidance_model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
         if guidance_model_name:
             eval_logger.info(f"Loading guidance model: {guidance_model_name}")
             self.ar_guidance_model = AutoModelForCausalLM.from_pretrained(
@@ -200,6 +207,8 @@ class AdaptiveBase(LM):
                 trust_remote_code=True
             ).to(self.device)
             self.ar_guidance_model.eval()
+        else:
+            eval_logger.info(f"Warning: guidance model not exists!")
 
         if use_cache or dual_cache:
             eval_logger.warning("Prefix/Dual Cache requested but Adaptive Policy rollout does not strictly implement KV-caching yet. Running standard adaptive rollout.")
