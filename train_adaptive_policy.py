@@ -513,6 +513,20 @@ def ppo_loss(new_logprob: torch.Tensor, old_logprob: torch.Tensor, advantage: to
     clipped = torch.clamp(ratio, 1 - clip, 1 + clip)
     return -torch.min(ratio * advantage, clipped * advantage).mean()
 
+
+def _sanitize_ckpt_segment(value: str) -> str:
+    value = value.strip()
+    for ch in ["/", "\\", ":", " "]:
+        value = value.replace(ch, "_")
+    return value
+
+
+def build_checkpoint_name(args) -> str:
+    datasets_part = "-".join(args.datasets) if args.datasets else "unknown"
+    guidance_part = _sanitize_ckpt_segment(args.ar_guidance_model or "none")
+    reward_part = _sanitize_ckpt_segment(args.ar_reward_model or "none")
+    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}.pt"
+
 def main():
     setup_logging()
     parser = argparse.ArgumentParser()
@@ -560,7 +574,8 @@ def main():
     # --- [MODIFIED] Automatic Guidance Model Selection ---
     if args.ar_guidance_model is None:
         if args.model_type == "llada":
-            args.ar_guidance_model = "meta-llama/Llama-3.2-1B-Instruct"
+            # args.ar_guidance_model = "meta-llama/Llama-3.2-1B-Instruct"
+            args.ar_guidance_model = "Qwen/Qwen3-0.6B"
             print(f"Selected Guidance for LLaDA: {args.ar_guidance_model}")
         elif args.model_type == "dream":
             args.ar_guidance_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
@@ -568,9 +583,9 @@ def main():
     # ---------------------------------------------------
 
     if args.save_path is None:
-        args.save_path = f"./checkpoints/policy_{args.model_type}.pt"
+        args.save_path = build_checkpoint_name(args)
     if args.load_path is None:
-        args.load_path = f"./checkpoints/policy_{args.model_type}.pt"
+        args.load_path = build_checkpoint_name(args)
 
     prompts = load_prompts(args.datasets, max_samples=args.max_samples)
 
