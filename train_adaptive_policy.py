@@ -528,7 +528,6 @@ def build_checkpoint_name(args) -> str:
     return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}.pt"
 
 def main():
-    setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_type", choices=["llada", "dream"], default="llada")
     parser.add_argument("--model_path", type=str, default="GSAI-ML/LLaDA-8B-Instruct")
@@ -586,6 +585,9 @@ def main():
         args.save_path = build_checkpoint_name(args)
     if args.load_path is None:
         args.load_path = build_checkpoint_name(args)
+
+    train_run_name = os.path.splitext(os.path.basename(args.save_path))[0]
+    setup_logging(run_name=train_run_name)
 
     prompts = load_prompts(args.datasets, max_samples=args.max_samples)
 

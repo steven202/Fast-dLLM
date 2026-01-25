@@ -14,10 +14,19 @@ class Tee(object):
         for f in self.files:
             f.flush()
 
-def setup_logging(log_dir="./train_log"):
+
+def _sanitize_log_segment(value: str) -> str:
+    value = (value or "").strip()
+    for ch in ["/", "\\", ":", " "]:
+        value = value.replace(ch, "_")
+    return value
+
+
+def setup_logging(log_dir="./train_log", run_name: str | None = None):
     os.makedirs(log_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = os.path.join(log_dir, f"train_{timestamp}.log")
+    safe_run_name = _sanitize_log_segment(run_name or "run")
+    log_path = os.path.join(log_dir, f"train_{safe_run_name}_{timestamp}.log")
     
     # Open log file
     f = open(log_path, 'w', encoding='utf-8')
