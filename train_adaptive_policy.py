@@ -144,6 +144,8 @@ def rollout_llada(
     block_len_min: int,
     block_len_max: int,
     threshold: float,
+    use_cache: bool = False,
+    dual_cache: bool = False,
 ) -> RolloutResult:
     device = model.device
     
@@ -178,6 +180,9 @@ def rollout_llada(
     # [FIX] Use bidirectional attention bias for MDM/Diffusion generation
     def get_attention_bias(length, device):
         return torch.zeros((1, 1, length, length), device=device, dtype=torch.float)
+
+    use_cache = bool(use_cache)
+    dual_cache = bool(dual_cache)
 
     while current_len < gen_length:
         context_len = input_ids.shape[1] + current_len
@@ -243,38 +248,141 @@ def rollout_llada(
         policy_features.append((last_hidden.detach(), entropy.detach(), guidance_entropy.detach()))
         policy_actions.append(block_len - 1)
 
-        i = 0
-        while True:
-            if i >= steps_per_block:
-                break
+        if use_cache or dual_cache:
+            need_hidden = guidance_target is not None and guidance_gamma != 0.0
+            out_full = model(x, use_cache=True, output_hidden_states=need_hidden)
+            past_key_values = out_full.past_key_values
+            nfe += 1
+
+            if not dual_cache:
+                trimmed_pkv = []
+                for layer_kv in past_key_values:
+                    trimmed_pkv.append(tuple(kv[:, :, :block_start] for kv in layer_kv))
+                past_key_values = trimmed_pkv
+
+            logits = out_full.logits
+            if need_hidden:
+                hidden_states = out_full.hidden_states[-1]
+                hidden_states = apply_guidance_llada(model, hidden_states, guidance_target, guidance_gamma)
+                if model.model.config.weight_tying:
+                    logits = F.linear(hidden_states, model.model.transformer.wte.weight, None)
+                else:
+                    logits = model.model.transformer.ff_out(hidden_states)
+                if hasattr(model.model.config, "scale_logits") and model.model.config.scale_logits:
+                    logits = logits * (1 / math.sqrt(model.model.config.d_model))
+
             mask_index = (x == mask_id)
             mask_index[:, block_end:] = 0
-
-            att_bias = get_attention_bias(x.shape[1], device)
-            outputs = model(x, attention_bias=att_bias, output_hidden_states=True)
-            
-            hidden_states = outputs.hidden_states[-1]
-            hidden_states = apply_guidance_llada(model, hidden_states, guidance_target, guidance_gamma)
-
-            if model.model.config.weight_tying:
-                logits = F.linear(hidden_states, model.model.transformer.wte.weight, None)
-            else:
-                logits = model.model.transformer.ff_out(hidden_states)
-
-            if hasattr(model.model.config, "scale_logits") and model.model.config.scale_logits:
-                 logits = logits * (1 / math.sqrt(model.model.config.d_model))
-            
             mask_logits = logits[mask_index]
-            step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
-            entropy_accum.append(step_entropy)
+            if mask_logits.numel() > 0:
+                step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                entropy_accum.append(step_entropy)
 
             x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
             x[transfer_index] = x0[transfer_index]
 
-            i += 1
-            nfe += 1
-            if (x[:, block_start:block_end] == mask_id).sum() == 0:
-                break
+            replace_position = None
+            if dual_cache:
+                replace_position = torch.zeros_like(x, dtype=torch.bool)
+                replace_position[:, block_start:block_end] = True
+
+            i = 1
+            while True:
+                if i >= steps_per_block or (x[:, block_start:block_end] == mask_id).sum() == 0:
+                    break
+
+                if dual_cache:
+                    outputs = model(
+                        x[:, block_start:block_end],
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                        replace_position=replace_position,
+                        output_hidden_states=need_hidden,
+                    )
+                    logits_blk = outputs.logits
+                    if need_hidden:
+                        hidden_states = outputs.hidden_states[-1]
+                        hidden_states = apply_guidance_llada(model, hidden_states, guidance_target, guidance_gamma)
+                        if model.model.config.weight_tying:
+                            logits_blk = F.linear(hidden_states, model.model.transformer.wte.weight, None)
+                        else:
+                            logits_blk = model.model.transformer.ff_out(hidden_states)
+                        if hasattr(model.model.config, "scale_logits") and model.model.config.scale_logits:
+                            logits_blk = logits_blk * (1 / math.sqrt(model.model.config.d_model))
+
+                    mask_blk = (x[:, block_start:block_end] == mask_id)
+                    mask_logits = logits_blk[mask_blk]
+                    if mask_logits.numel() > 0:
+                        step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                        entropy_accum.append(step_entropy)
+
+                    x0_blk, transfer_idx_blk = get_transfer_index(logits_blk, mask_blk, x[:, block_start:block_end], threshold)
+                    blk_old = x[:, block_start:block_end]
+                    blk_new = torch.where(transfer_idx_blk, x0_blk, blk_old)
+                    x = torch.cat([x[:, :block_start], blk_new, x[:, block_end:]], dim=1)
+                else:
+                    outputs = model(
+                        x[:, block_start:],
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                        output_hidden_states=need_hidden,
+                    )
+                    logits_sub = outputs.logits
+                    if need_hidden:
+                        hidden_states = outputs.hidden_states[-1]
+                        hidden_states = apply_guidance_llada(model, hidden_states, guidance_target, guidance_gamma)
+                        if model.model.config.weight_tying:
+                            logits_sub = F.linear(hidden_states, model.model.transformer.wte.weight, None)
+                        else:
+                            logits_sub = model.model.transformer.ff_out(hidden_states)
+                        if hasattr(model.model.config, "scale_logits") and model.model.config.scale_logits:
+                            logits_sub = logits_sub * (1 / math.sqrt(model.model.config.d_model))
+
+                    mask_sub = (x[:, block_start:] == mask_id)
+                    mask_sub[:, block_len:] = 0
+                    mask_logits = logits_sub[mask_sub]
+                    if mask_logits.numel() > 0:
+                        step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                        entropy_accum.append(step_entropy)
+
+                    x0_sub, transfer_idx_sub = get_transfer_index(logits_sub, mask_sub, x[:, block_start:], threshold)
+                    x[:, block_start:][transfer_idx_sub] = x0_sub[transfer_idx_sub]
+
+                i += 1
+                nfe += 1
+        else:
+            i = 0
+            while True:
+                if i >= steps_per_block:
+                    break
+                mask_index = (x == mask_id)
+                mask_index[:, block_end:] = 0
+
+                att_bias = get_attention_bias(x.shape[1], device)
+                outputs = model(x, attention_bias=att_bias, output_hidden_states=True)
+                
+                hidden_states = outputs.hidden_states[-1]
+                hidden_states = apply_guidance_llada(model, hidden_states, guidance_target, guidance_gamma)
+
+                if model.model.config.weight_tying:
+                    logits = F.linear(hidden_states, model.model.transformer.wte.weight, None)
+                else:
+                    logits = model.model.transformer.ff_out(hidden_states)
+
+                if hasattr(model.model.config, "scale_logits") and model.model.config.scale_logits:
+                     logits = logits * (1 / math.sqrt(model.model.config.d_model))
+                
+                mask_logits = logits[mask_index]
+                step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                entropy_accum.append(step_entropy)
+
+                x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
+                x[transfer_index] = x0[transfer_index]
+
+                i += 1
+                nfe += 1
+                if (x[:, block_start:block_end] == mask_id).sum() == 0:
+                    break
 
         current_len += block_len
 
@@ -305,6 +413,8 @@ def rollout_dream(
     block_len_min: int,
     block_len_max: int,
     threshold: float,
+    use_cache: bool = False,
+    dual_cache: bool = False,
 ) -> RolloutResult:
     device = model.device
     
@@ -335,6 +445,9 @@ def rollout_dream(
     logprobs = []
     policy_features = []
     policy_actions = []
+
+    use_cache = bool(use_cache)
+    dual_cache = bool(dual_cache)
 
     while current_len < gen_length:
         context_len = input_ids.shape[1] + current_len
@@ -390,31 +503,112 @@ def rollout_dream(
         policy_features.append((last_hidden.detach(), entropy.detach(), guidance_entropy.detach()))
         policy_actions.append(block_len - 1)
 
-        i = 0
-        while True:
-            if i >= steps_per_block:
-                break
+        if use_cache or dual_cache:
+            need_hidden = guidance_target is not None and guidance_gamma != 0.0
+            out_full = model(x, use_cache=True, dual_cache=dual_cache, output_hidden_states=True)
+            past_key_values = out_full.past_key_values
+            nfe += 1
 
-            mask_index = (x == mask_id)
-            mask_index[:, block_end:] = 0
-            position_ids = torch.arange(x.shape[1], device=device).unsqueeze(0)
-            outputs = model(x, position_ids=position_ids, output_hidden_states=True)
-            hidden_states = outputs.hidden_states[-1]
+            hidden_states = out_full.hidden_states[-1]
             hidden_states = apply_guidance_dream(model, hidden_states, guidance_target, guidance_gamma)
             logits = model.lm_head(hidden_states)
             logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
 
+            mask_index = (x == mask_id)
+            mask_index[:, block_end:] = 0
             mask_logits = logits[mask_index]
-            step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
-            entropy_accum.append(step_entropy)
+            if mask_logits.numel() > 0:
+                step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                entropy_accum.append(step_entropy)
 
             x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
             x[transfer_index] = x0[transfer_index]
 
-            i += 1
-            nfe += 1
-            if (x[:, block_start:block_end] == mask_id).sum() == 0:
-                break
+            replace_position = None
+            if dual_cache:
+                replace_position = torch.zeros_like(x, dtype=torch.bool)
+                replace_position[:, block_start:block_end] = True
+
+            i = 1
+            while True:
+                if i >= steps_per_block or (x[:, block_start:block_end] == mask_id).sum() == 0:
+                    break
+
+                if dual_cache:
+                    outputs = model(
+                        x[:, block_start:block_end],
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                        dual_cache=True,
+                        replace_position=replace_position,
+                        output_hidden_states=True,
+                    )
+                    hidden_states = outputs.hidden_states[-1]
+                    hidden_states = apply_guidance_dream(model, hidden_states, guidance_target, guidance_gamma)
+                    logits_blk = model.lm_head(hidden_states)
+                    logits_blk = torch.cat([logits_blk[:, :1], logits_blk[:, :-1]], dim=1)
+
+                    mask_blk = (x[:, block_start:block_end] == mask_id)
+                    mask_logits = logits_blk[mask_blk]
+                    if mask_logits.numel() > 0:
+                        step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                        entropy_accum.append(step_entropy)
+
+                    x0_blk, transfer_idx_blk = get_transfer_index(logits_blk, mask_blk, x[:, block_start:block_end], threshold)
+                    blk_old = x[:, block_start:block_end]
+                    blk_new = torch.where(transfer_idx_blk, x0_blk, blk_old)
+                    x = torch.cat([x[:, :block_start], blk_new, x[:, block_end:]], dim=1)
+                else:
+                    outputs = model(
+                        x[:, block_start:],
+                        past_key_values=past_key_values,
+                        use_cache=True,
+                        dual_cache=False,
+                        output_hidden_states=True,
+                    )
+                    hidden_states = outputs.hidden_states[-1]
+                    hidden_states = apply_guidance_dream(model, hidden_states, guidance_target, guidance_gamma)
+                    logits_sub = model.lm_head(hidden_states)
+                    logits_sub = torch.cat([logits_sub[:, :1], logits_sub[:, :-1]], dim=1)
+
+                    mask_sub = (x[:, block_start:] == mask_id)
+                    mask_sub[:, block_len:] = 0
+                    mask_logits = logits_sub[mask_sub]
+                    if mask_logits.numel() > 0:
+                        step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                        entropy_accum.append(step_entropy)
+
+                    x0_sub, transfer_idx_sub = get_transfer_index(logits_sub, mask_sub, x[:, block_start:], threshold)
+                    x[:, block_start:][transfer_idx_sub] = x0_sub[transfer_idx_sub]
+
+                i += 1
+                nfe += 1
+        else:
+            i = 0
+            while True:
+                if i >= steps_per_block:
+                    break
+
+                mask_index = (x == mask_id)
+                mask_index[:, block_end:] = 0
+                position_ids = torch.arange(x.shape[1], device=device).unsqueeze(0)
+                outputs = model(x, position_ids=position_ids, output_hidden_states=True)
+                hidden_states = outputs.hidden_states[-1]
+                hidden_states = apply_guidance_dream(model, hidden_states, guidance_target, guidance_gamma)
+                logits = model.lm_head(hidden_states)
+                logits = torch.cat([logits[:, :1], logits[:, :-1]], dim=1)
+
+                mask_logits = logits[mask_index]
+                step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
+                entropy_accum.append(step_entropy)
+
+                x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
+                x[transfer_index] = x0[transfer_index]
+
+                i += 1
+                nfe += 1
+                if (x[:, block_start:block_end] == mask_id).sum() == 0:
+                    break
 
         current_len += block_len
 
