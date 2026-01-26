@@ -347,8 +347,10 @@ class AdaptiveBase(LM):
             except Exception as e:
                 eval_logger.warning(f"Could not attach aligner: {e}")
 
+        if self.use_cache and not self.dual_cache:
+            eval_logger.warning("Prefix cache requested without dual_cache. Continuing without forcing dual_cache.")
         if self.use_cache or self.dual_cache:
-            eval_logger.info("Prefix/Dual cache enabled for eval_adaptive. Using cached adaptive rollout path.")
+            eval_logger.info("Cache enabled for eval_adaptive. Using cached adaptive rollout path.")
 
     def generate_until(self, requests):
         if not requests:

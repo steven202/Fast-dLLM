@@ -183,6 +183,8 @@ def rollout_llada(
 
     use_cache = bool(use_cache)
     dual_cache = bool(dual_cache)
+    if use_cache and not dual_cache:
+        print("[rollout_llada] Warning: use_cache=True without dual_cache. Proceeding with prefix-cache only.")
 
     while current_len < gen_length:
         context_len = input_ids.shape[1] + current_len
@@ -448,6 +450,8 @@ def rollout_dream(
 
     use_cache = bool(use_cache)
     dual_cache = bool(dual_cache)
+    if use_cache and not dual_cache:
+        print("[rollout_dream] Warning: use_cache=True without dual_cache. Proceeding with prefix-cache only.")
 
     while current_len < gen_length:
         context_len = input_ids.shape[1] + current_len
