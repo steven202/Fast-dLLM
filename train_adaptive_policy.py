@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForCausalLM
+import numpy as np
 
 from utils.helpers import set_seed, str2bool
 from utils.aligner import StaticTokenAligner, RobustTokenAligner, CachedTokenAligner
@@ -100,7 +101,16 @@ def apply_guidance_dream(model: DreamModel, hidden: torch.Tensor, guidance_targe
     return hidden - guidance_gamma * (guidance_target - hidden)
 
 
-def get_transfer_index(
+def _add_gumbel_noise(logits: torch.Tensor, temperature: float) -> torch.Tensor:
+    if temperature == 0:
+        return logits
+    logits = logits.to(torch.float64)
+    noise = torch.rand_like(logits, dtype=torch.float64)
+    gumbel_noise = (-torch.log(noise)) ** temperature
+    return logits.exp() / gumbel_noise
+
+
+def get_transfer_index_custom(
     logits: torch.Tensor,
     mask_index: torch.Tensor,
     x: torch.Tensor,
@@ -131,6 +141,143 @@ def get_transfer_index(
     raise ValueError("threshold must be set for training rollouts")
 
 
+def get_transfer_index_llada_threshold(
+    logits: torch.Tensor,
+    mask_index: torch.Tensor,
+    x: torch.Tensor,
+    threshold: Optional[float],
+    gumbel_temperature: float = 0.0,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    logits_with_noise = _add_gumbel_noise(logits, temperature=gumbel_temperature)
+    x0 = torch.argmax(logits_with_noise, dim=-1)
+    p = F.softmax(logits.to(torch.float64), dim=-1)
+    x0_p = torch.gather(p, dim=-1, index=x0.unsqueeze(-1)).squeeze(-1)
+
+    x0 = torch.where(mask_index, x0, x)
+    neg_inf = torch.tensor(torch.finfo(x0_p.dtype).min, device=x0_p.device, dtype=x0_p.dtype)
+    confidence = torch.where(mask_index, x0_p, neg_inf)
+
+    if threshold is not None:
+        transfer_index = mask_index & (confidence >= threshold)
+        max_conf_indices = torch.argmax(confidence, dim=1, keepdim=True)
+        force_mask = torch.zeros_like(transfer_index).scatter_(1, max_conf_indices, True)
+        transfer_index = transfer_index | force_mask
+        transfer_index = transfer_index & mask_index
+        return x0, transfer_index
+
+    raise ValueError("threshold must be set for training rollouts")
+
+
+def get_transfer_index_dream_threshold(
+    logits: torch.Tensor,
+    mask_index: torch.Tensor,
+    x: torch.Tensor,
+    threshold: Optional[float],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    probs = F.softmax(logits.to(torch.float32), dim=-1)
+    confidence, x0 = probs.max(dim=-1)
+
+    x0 = torch.where(mask_index, x0, x)
+    neg_inf = torch.tensor(torch.finfo(confidence.dtype).min, device=confidence.device, dtype=confidence.dtype)
+    full_confidence = torch.where(mask_index, confidence, neg_inf)
+
+    transfer_index = torch.zeros_like(mask_index, dtype=torch.bool)
+    batch_size = full_confidence.size(0)
+    for b in range(batch_size):
+        current_transfer_tokens = int(mask_index[b].sum().item())
+        if current_transfer_tokens <= 0:
+            continue
+        selected_confidence, select_index = torch.topk(full_confidence[b], current_transfer_tokens)
+        transfer_index[b, select_index] = True
+        for k in range(1, current_transfer_tokens):
+            if selected_confidence[k] < threshold:
+                transfer_index[b, select_index[k]] = False
+
+    return x0, transfer_index
+
+
+def get_transfer_index_dynamic(
+    logits: torch.Tensor,
+    mask_index: torch.Tensor,
+    x: torch.Tensor,
+    factor: float = 1.0,
+    gumbel_temperature: float = 0.0,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    logits_with_noise = _add_gumbel_noise(logits, temperature=gumbel_temperature)
+    x0 = torch.argmax(logits_with_noise, dim=-1)
+    p = F.softmax(logits.to(torch.float64), dim=-1)
+    x0_p = torch.squeeze(torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1)
+
+    x0 = torch.where(mask_index, x0, x)
+    confidence = torch.where(mask_index, x0_p, -np.inf)
+
+    transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
+    num_transfer_tokens = mask_index.sum(dim=1, keepdim=True)
+
+    for j in range(confidence.shape[0]):
+        num_tokens = int(num_transfer_tokens[j].item())
+        if num_tokens == 0:
+            continue
+
+        ns = list(range(1, num_tokens + 1))
+        es = [factor / (n + 1) for n in ns]
+        threshs = [1 - e for e in es]
+
+        threshs[0] = -1
+        sorted_confidence = torch.sort(confidence[j][mask_index[j]], dim=-1, descending=True)[0]
+        for top_i in range(len(threshs)):
+            if sorted_confidence[top_i] < threshs[top_i]:
+                break
+
+        if top_i == 0 or top_i == len(threshs) - 1:
+            top_i += 1
+
+        _, select_index = torch.topk(confidence[j], k=top_i)
+        transfer_index[j, select_index] = True
+
+    return x0, transfer_index
+
+
+def select_transfer_index(
+    logits: torch.Tensor,
+    mask_index: torch.Tensor,
+    x: torch.Tensor,
+    threshold: Optional[float],
+    threshold_impl: str,
+    factor: Optional[float],
+    gumbel_temperature: float,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    if factor is not None:
+        return get_transfer_index_dynamic(
+            logits=logits,
+            mask_index=mask_index,
+            x=x,
+            factor=factor,
+            gumbel_temperature=gumbel_temperature,
+        )
+    if threshold_impl == "llada":
+        return get_transfer_index_llada_threshold(
+            logits=logits,
+            mask_index=mask_index,
+            x=x,
+            threshold=threshold,
+            gumbel_temperature=gumbel_temperature,
+        )
+    if threshold_impl == "dream":
+        return get_transfer_index_dream_threshold(
+            logits=logits,
+            mask_index=mask_index,
+            x=x,
+            threshold=threshold,
+        )
+    return get_transfer_index_custom(
+        logits=logits,
+        mask_index=mask_index,
+        x=x,
+        threshold=threshold,
+    )
+
+
 def rollout_llada(
     model: LLaDAModelLM,
     policy_net: torch.nn.Module,
@@ -144,6 +291,9 @@ def rollout_llada(
     block_len_min: int,
     block_len_max: int,
     threshold: float,
+    threshold_impl: str = "custom",
+    factor: Optional[float] = None,
+    gumbel_temperature: float = 0.0,
     use_cache: bool = False,
     dual_cache: bool = False,
 ) -> RolloutResult:
@@ -280,7 +430,15 @@ def rollout_llada(
                 step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                 entropy_accum.append(step_entropy)
 
-            x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
+            x0, transfer_index = select_transfer_index(
+                logits=logits,
+                mask_index=mask_index,
+                x=x,
+                threshold=threshold,
+                threshold_impl=threshold_impl,
+                factor=factor,
+                gumbel_temperature=gumbel_temperature,
+            )
             x[transfer_index] = x0[transfer_index]
 
             replace_position = None
@@ -318,7 +476,15 @@ def rollout_llada(
                         step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                         entropy_accum.append(step_entropy)
 
-                    x0_blk, transfer_idx_blk = get_transfer_index(logits_blk, mask_blk, x[:, block_start:block_end], threshold)
+                    x0_blk, transfer_idx_blk = select_transfer_index(
+                        logits=logits_blk,
+                        mask_index=mask_blk,
+                        x=x[:, block_start:block_end],
+                        threshold=threshold,
+                        threshold_impl=threshold_impl,
+                        factor=factor,
+                        gumbel_temperature=gumbel_temperature,
+                    )
                     blk_old = x[:, block_start:block_end]
                     blk_new = torch.where(transfer_idx_blk, x0_blk, blk_old)
                     x = torch.cat([x[:, :block_start], blk_new, x[:, block_end:]], dim=1)
@@ -347,7 +513,15 @@ def rollout_llada(
                         step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                         entropy_accum.append(step_entropy)
 
-                    x0_sub, transfer_idx_sub = get_transfer_index(logits_sub, mask_sub, x[:, block_start:], threshold)
+                    x0_sub, transfer_idx_sub = select_transfer_index(
+                        logits=logits_sub,
+                        mask_index=mask_sub,
+                        x=x[:, block_start:],
+                        threshold=threshold,
+                        threshold_impl=threshold_impl,
+                        factor=factor,
+                        gumbel_temperature=gumbel_temperature,
+                    )
                     x[:, block_start:][transfer_idx_sub] = x0_sub[transfer_idx_sub]
 
                 i += 1
@@ -378,7 +552,15 @@ def rollout_llada(
                 step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                 entropy_accum.append(step_entropy)
 
-                x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
+                x0, transfer_index = select_transfer_index(
+                    logits=logits,
+                    mask_index=mask_index,
+                    x=x,
+                    threshold=threshold,
+                    threshold_impl=threshold_impl,
+                    factor=factor,
+                    gumbel_temperature=gumbel_temperature,
+                )
                 x[transfer_index] = x0[transfer_index]
 
                 i += 1
@@ -415,6 +597,9 @@ def rollout_dream(
     block_len_min: int,
     block_len_max: int,
     threshold: float,
+    threshold_impl: str = "custom",
+    factor: Optional[float] = None,
+    gumbel_temperature: float = 0.0,
     use_cache: bool = False,
     dual_cache: bool = False,
 ) -> RolloutResult:
@@ -525,7 +710,15 @@ def rollout_dream(
                 step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                 entropy_accum.append(step_entropy)
 
-            x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
+            x0, transfer_index = select_transfer_index(
+                logits=logits,
+                mask_index=mask_index,
+                x=x,
+                threshold=threshold,
+                threshold_impl=threshold_impl,
+                factor=factor,
+                gumbel_temperature=gumbel_temperature,
+            )
             x[transfer_index] = x0[transfer_index]
 
             replace_position = None
@@ -558,7 +751,15 @@ def rollout_dream(
                         step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                         entropy_accum.append(step_entropy)
 
-                    x0_blk, transfer_idx_blk = get_transfer_index(logits_blk, mask_blk, x[:, block_start:block_end], threshold)
+                    x0_blk, transfer_idx_blk = select_transfer_index(
+                        logits=logits_blk,
+                        mask_index=mask_blk,
+                        x=x[:, block_start:block_end],
+                        threshold=threshold,
+                        threshold_impl=threshold_impl,
+                        factor=factor,
+                        gumbel_temperature=gumbel_temperature,
+                    )
                     blk_old = x[:, block_start:block_end]
                     blk_new = torch.where(transfer_idx_blk, x0_blk, blk_old)
                     x = torch.cat([x[:, :block_start], blk_new, x[:, block_end:]], dim=1)
@@ -582,7 +783,15 @@ def rollout_dream(
                         step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                         entropy_accum.append(step_entropy)
 
-                    x0_sub, transfer_idx_sub = get_transfer_index(logits_sub, mask_sub, x[:, block_start:], threshold)
+                    x0_sub, transfer_idx_sub = select_transfer_index(
+                        logits=logits_sub,
+                        mask_index=mask_sub,
+                        x=x[:, block_start:],
+                        threshold=threshold,
+                        threshold_impl=threshold_impl,
+                        factor=factor,
+                        gumbel_temperature=gumbel_temperature,
+                    )
                     x[:, block_start:][transfer_idx_sub] = x0_sub[transfer_idx_sub]
 
                 i += 1
@@ -606,7 +815,15 @@ def rollout_dream(
                 step_entropy = torch.distributions.Categorical(logits=mask_logits).entropy().mean()
                 entropy_accum.append(step_entropy)
 
-                x0, transfer_index = get_transfer_index(logits, mask_index, x, threshold)
+                x0, transfer_index = select_transfer_index(
+                    logits=logits,
+                    mask_index=mask_index,
+                    x=x,
+                    threshold=threshold,
+                    threshold_impl=threshold_impl,
+                    factor=factor,
+                    gumbel_temperature=gumbel_temperature,
+                )
                 x[transfer_index] = x0[transfer_index]
 
                 i += 1
@@ -768,6 +985,11 @@ def main():
     parser.add_argument("--block_len_min", type=int, default=8)
     parser.add_argument("--block_len_max", type=int, default=64)
     parser.add_argument("--threshold", type=float, default=0.9)
+    parser.add_argument("--threshold_impl", choices=["custom", "llada", "dream"], default=None)
+    parser.add_argument("--factor", type=float, default=None)
+    parser.add_argument("--gumbel_temperature", type=float, default=None)
+    parser.add_argument("--use_cache", type=str2bool, default=None)
+    parser.add_argument("--dual_cache", type=str2bool, default=None)
 
     parser.add_argument("--guidance_gamma", type=float, default=0.5)
     parser.add_argument("--guidance_temperature", type=float, default=0.5)
@@ -788,6 +1010,35 @@ def main():
     parser.add_argument("--debug", type=str2bool, default=True)
     args = parser.parse_args()
     set_seed(args.seed)
+
+    if args.threshold_impl is None:
+        if args.model_type == "llada":
+            args.threshold_impl = "llada"
+            if args.use_cache is None:
+                args.use_cache = True
+            if args.dual_cache is None:
+                args.dual_cache = True
+            if args.gumbel_temperature is None:
+                args.gumbel_temperature = 0.0
+        else:
+            args.threshold_impl = "dream"
+            if args.use_cache is None:
+                args.use_cache = True
+            if args.dual_cache is None:
+                args.dual_cache = True
+            if args.gumbel_temperature is None:
+                args.gumbel_temperature = 0.0
+    else:
+        if args.use_cache is None:
+            args.use_cache = False
+        if args.dual_cache is None:
+            args.dual_cache = False
+        if args.gumbel_temperature is None:
+            args.gumbel_temperature = 0.0
+
+    if args.threshold_impl != "llada" and args.factor is not None:
+        print(f"Warning: factor is only supported for LLaDA. Ignoring factor for threshold_impl='{args.threshold_impl}'.")
+        args.factor = None
     
     # --- [MODIFIED] Automatic Guidance Model Selection ---
     if args.ar_guidance_model is None:
@@ -809,6 +1060,8 @@ def main():
         args.load_path = build_checkpoint_name(args, timestamp=run_timestamp)
 
     train_run_name = os.path.splitext(os.path.basename(args.save_path))[0]
+    if args.threshold_impl:
+        train_run_name = f"{train_run_name}_{args.threshold_impl}"
     tee_log_file = setup_logging(run_name=train_run_name)
     tee_log_path = os.path.abspath(tee_log_file.name) if tee_log_file is not None else None
 
@@ -905,7 +1158,12 @@ def main():
             wandb_config = dict(vars(args))
             if tee_log_path is not None:
                 wandb_config["tee_log_path"] = tee_log_path
-            wandb.init(project="adaptive-dllm", dir="./wandb_log", config=wandb_config, name=f"policy_{args.model_type}_{args.aligner_type}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            wandb.init(
+                project="adaptive-dllm",
+                dir="./wandb_log",
+                config=wandb_config,
+                name=f"policy_{args.model_type}_{args.aligner_type}_{args.threshold_impl}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            )
             if wandb.run is not None:
                 print(f"WandB Run URL: {wandb.run.url}")
                 print(f"WandB Project URL: {wandb.run.project_url}")
@@ -950,6 +1208,11 @@ def main():
                         args.block_len_min,
                         args.block_len_max,
                         args.threshold,
+                        threshold_impl=args.threshold_impl,
+                        factor=args.factor,
+                        gumbel_temperature=args.gumbel_temperature,
+                        use_cache=args.use_cache,
+                        dual_cache=args.dual_cache,
                     )
                 else:
                     rollout = rollout_dream(
@@ -965,6 +1228,11 @@ def main():
                         args.block_len_min,
                         args.block_len_max,
                         args.threshold,
+                        threshold_impl=args.threshold_impl,
+                        factor=args.factor,
+                        gumbel_temperature=args.gumbel_temperature,
+                        use_cache=args.use_cache,
+                        dual_cache=args.dual_cache,
                     )
 
                 gen_text = tokenizer.decode(rollout.generated_ids[0, input_ids_len(prompt, tokenizer):], skip_special_tokens=True)

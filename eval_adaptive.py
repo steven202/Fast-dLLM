@@ -106,6 +106,7 @@ def build_eval_run_name(
     policy_path: str,
     guidance_model_name: Optional[str],
     aligner_type: str,
+    threshold_impl: Optional[str],
     gen_length: int,
     steps: int,
     block_len_max: int,
@@ -114,7 +115,12 @@ def build_eval_run_name(
     pretrained_part = _sanitize_name_segment(pretrained)
     guidance_part = _sanitize_name_segment(guidance_model_name or "none")
     aligner_part = _sanitize_name_segment(aligner_type or "static")
-    return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_{aligner_part}_L{gen_length}_S{steps}_B{block_len_max}"
+    if threshold_impl is None:
+        threshold_part = "llada" if model_type == "llada" else "dream"
+    else:
+        threshold_part = threshold_impl
+    threshold_part = _sanitize_name_segment(threshold_part)
+    return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_{aligner_part}_{threshold_part}_L{gen_length}_S{steps}_B{block_len_max}"
 
 
 def setup_eval_logging(log_dir: str = "./eval_log", run_name: Optional[str] = None):
@@ -227,20 +233,53 @@ class AdaptiveBase(LM):
         steps: int = 256,
         block_len_min: int = 8,
         block_len_max: int = 64,
-        threshold: float = 0.9,
+        threshold: Optional[float] = None,
+        threshold_impl: Optional[str] = None,
         guidance_gamma: float = 0.5,
         guidance_temperature: float = 0.5,
         aligner_type: str = "static",
         # CLI compatibility args (may not be used but passed by scripts)
-        use_cache: bool = False,
-        dual_cache: bool = False,
+        use_cache: Optional[bool] = None,
+        dual_cache: Optional[bool] = None,
         factor: float = 1.0,
+        gumbel_temperature: Optional[float] = None,
         show_speed: bool = False,
         show_actions: bool = False,
         **kwargs
     ):
         super().__init__()
         self.model_type = model_type
+        if threshold is None:
+            threshold = 0.9
+        if threshold_impl is None:
+            if model_type == "llada":
+                threshold_impl = "llada"
+                if use_cache is None:
+                    use_cache = True
+                if dual_cache is None:
+                    dual_cache = True
+                if gumbel_temperature is None:
+                    gumbel_temperature = 0.0
+            else:
+                threshold_impl = "dream"
+                if use_cache is None:
+                    use_cache = True
+                if dual_cache is None:
+                    dual_cache = True
+                if gumbel_temperature is None:
+                    gumbel_temperature = 0.0
+        else:
+            if use_cache is None:
+                use_cache = False
+            if dual_cache is None:
+                dual_cache = False
+            if gumbel_temperature is None:
+                gumbel_temperature = 0.0
+        if threshold_impl != "llada" and factor is not None:
+            eval_logger.warning(
+                f"factor is only supported for LLaDA. Ignoring factor for threshold_impl='{threshold_impl}'."
+            )
+            factor = None
         self.device = torch.device(device)
         self.batch_size_per_gpu = int(batch_size)
         self.gen_length = int(gen_length)
@@ -248,9 +287,11 @@ class AdaptiveBase(LM):
         self.block_len_min = int(block_len_min)
         self.block_len_max = int(block_len_max)
         self.threshold = float(threshold)
+        self.threshold_impl = str(threshold_impl)
         self.guidance_gamma = float(guidance_gamma)
         self.guidance_temperature = float(guidance_temperature)
         self.factor = None if factor is None else float(factor)
+        self.gumbel_temperature = float(gumbel_temperature)
         self.show_speed = _to_bool(show_speed)
         self.show_actions = _to_bool(show_actions)
         self.use_cache = _to_bool(use_cache)
@@ -274,6 +315,7 @@ class AdaptiveBase(LM):
             policy_path=policy_path,
             guidance_model_name=guidance_model_name,
             aligner_type=aligner_type,
+            threshold_impl=threshold_impl,
             gen_length=self.gen_length,
             steps=self.steps,
             block_len_max=self.block_len_max,
@@ -387,6 +429,9 @@ class AdaptiveBase(LM):
                         block_len_min=self.block_len_min,
                         block_len_max=self.block_len_max,
                         threshold=self.threshold,
+                        threshold_impl=self.threshold_impl,
+                        factor=self.factor,
+                        gumbel_temperature=self.gumbel_temperature,
                         use_cache=self.use_cache,
                         dual_cache=self.dual_cache,
                     )
@@ -404,6 +449,9 @@ class AdaptiveBase(LM):
                         block_len_min=self.block_len_min,
                         block_len_max=self.block_len_max,
                         threshold=self.threshold,
+                        threshold_impl=self.threshold_impl,
+                        factor=self.factor,
+                        gumbel_temperature=self.gumbel_temperature,
                         use_cache=self.use_cache,
                         dual_cache=self.dual_cache,
                     )
