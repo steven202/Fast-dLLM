@@ -871,6 +871,47 @@ def main():
                     print(f"[{valid}] {text}")
                 print("=" * 80 + "\n")
             if use_wandb:
+                def _pearson_corr(x: torch.Tensor, y: torch.Tensor) -> float:
+                    x = x.detach().float().flatten()
+                    y = y.detach().float().flatten()
+                    if x.numel() != y.numel() or x.numel() < 2:
+                        return 0.0
+                    x = x - x.mean()
+                    y = y - y.mean()
+                    denom = (x.pow(2).mean().sqrt() * y.pow(2).mean().sqrt()).item()
+                    if denom == 0.0 or math.isinf(denom) or math.isnan(denom):
+                        return 0.0
+                    return (x.mul(y).mean().item() / denom)
+
+                def _as_float_for_stats(x: torch.Tensor) -> torch.Tensor:
+                    """torch.quantile requires float or double (not bf16/fp16)."""
+                    return x.detach().to(dtype=torch.float32)
+
+                raw_comp_qual = args.w1 * r_qual_tensor
+                raw_comp_speed = args.w2 * r_speed_tensor
+                raw_comp_acc = args.w_acc * r_acc_tensor
+                raw_comp_ccd = -args.lambda_ccd * r_ccd_tensor
+
+                total_raw_f = _as_float_for_stats(total_raw_reward)
+                r_qual_f = _as_float_for_stats(r_qual_tensor)
+                r_speed_f = _as_float_for_stats(r_speed_tensor)
+                r_acc_f = _as_float_for_stats(r_acc_tensor)
+                r_ccd_f = _as_float_for_stats(r_ccd_tensor)
+
+                raw_comp_qual_f = _as_float_for_stats(raw_comp_qual)
+                raw_comp_speed_f = _as_float_for_stats(raw_comp_speed)
+                raw_comp_acc_f = _as_float_for_stats(raw_comp_acc)
+                raw_comp_ccd_f = _as_float_for_stats(raw_comp_ccd)
+
+                # Contribution fractions (use absolute magnitude so negative CCD still shows its "weight")
+                eps = 1e-12
+                abs_mean_qual = raw_comp_qual_f.abs().mean()
+                abs_mean_acc = raw_comp_acc_f.abs().mean()
+                abs_mean_ccd = raw_comp_ccd_f.abs().mean()
+                abs_mean_speed = raw_comp_speed_f.abs().mean()
+                abs_sum = abs_mean_qual + abs_mean_acc + abs_mean_ccd + abs_mean_speed
+                abs_sum = abs_sum if abs_sum.item() > 0 else torch.tensor(eps, device=abs_sum.device)
+
                 log_dict = {
                     "Train/Accuracy": correct_count / total_count if total_count > 0 else 0.0,
                     "Train/a_total": a_total.mean().item(),
@@ -889,16 +930,85 @@ def main():
                     "Train/a_ccd_weighted": a_ccd_weighted.mean().item(),
 
                     # [新增] 原始总分监控（不受 Advantage 归一化影响）
-                    "Train/Raw_Total_Mean": total_raw_reward.mean().item(),
-                    "Train/Raw_Total_Max": total_raw_reward.max().item(),
-                    "Train/Raw_Total_Min": total_raw_reward.min().item(),
+                    "Train/Raw_Total_Mean": total_raw_f.mean().item(),
+                    "Train/Raw_Total_Max": total_raw_f.max().item(),
+                    "Train/Raw_Total_Min": total_raw_f.min().item(),
+                    "Train/Raw_Total_Std": total_raw_f.std(unbiased=False).item() if total_raw_f.numel() > 1 else 0.0,
+                    "Train/Raw_Total_P10": torch.quantile(total_raw_f, 0.10).item() if total_raw_f.numel() > 0 else 0.0,
+                    "Train/Raw_Total_P50": torch.quantile(total_raw_f, 0.50).item() if total_raw_f.numel() > 0 else 0.0,
+                    "Train/Raw_Total_P90": torch.quantile(total_raw_f, 0.90).item() if total_raw_f.numel() > 0 else 0.0,
+
+                    # Raw 总分的分项贡献（加权后、逐 rollout）
+                    "Train/Raw_Comp_Qual_Mean": raw_comp_qual.mean().item(),
+                    "Train/Raw_Comp_Acc_Mean": raw_comp_acc.mean().item(),
+                    "Train/Raw_Comp_CCD_Mean": raw_comp_ccd.mean().item(),
+                    "Train/Raw_Comp_Speed_Mean": raw_comp_speed.mean().item(),
+
+                    "Train/Raw_Comp_Qual_Std": raw_comp_qual_f.std(unbiased=False).item() if raw_comp_qual_f.numel() > 1 else 0.0,
+                    "Train/Raw_Comp_Qual_P10": torch.quantile(raw_comp_qual_f, 0.10).item() if raw_comp_qual_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_Qual_P50": torch.quantile(raw_comp_qual_f, 0.50).item() if raw_comp_qual_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_Qual_P90": torch.quantile(raw_comp_qual_f, 0.90).item() if raw_comp_qual_f.numel() > 0 else 0.0,
+
+                    "Train/Raw_Comp_Acc_Std": raw_comp_acc_f.std(unbiased=False).item() if raw_comp_acc_f.numel() > 1 else 0.0,
+                    "Train/Raw_Comp_Acc_P10": torch.quantile(raw_comp_acc_f, 0.10).item() if raw_comp_acc_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_Acc_P50": torch.quantile(raw_comp_acc_f, 0.50).item() if raw_comp_acc_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_Acc_P90": torch.quantile(raw_comp_acc_f, 0.90).item() if raw_comp_acc_f.numel() > 0 else 0.0,
+
+                    "Train/Raw_Comp_CCD_Std": raw_comp_ccd_f.std(unbiased=False).item() if raw_comp_ccd_f.numel() > 1 else 0.0,
+                    "Train/Raw_Comp_CCD_P10": torch.quantile(raw_comp_ccd_f, 0.10).item() if raw_comp_ccd_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_CCD_P50": torch.quantile(raw_comp_ccd_f, 0.50).item() if raw_comp_ccd_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_CCD_P90": torch.quantile(raw_comp_ccd_f, 0.90).item() if raw_comp_ccd_f.numel() > 0 else 0.0,
+
+                    "Train/Raw_Comp_Speed_Std": raw_comp_speed_f.std(unbiased=False).item() if raw_comp_speed_f.numel() > 1 else 0.0,
+                    "Train/Raw_Comp_Speed_P10": torch.quantile(raw_comp_speed_f, 0.10).item() if raw_comp_speed_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_Speed_P50": torch.quantile(raw_comp_speed_f, 0.50).item() if raw_comp_speed_f.numel() > 0 else 0.0,
+                    "Train/Raw_Comp_Speed_P90": torch.quantile(raw_comp_speed_f, 0.90).item() if raw_comp_speed_f.numel() > 0 else 0.0,
+
+                    # 分项贡献“比重”（按 |加权分项| 的均值归一化，0~1）
+                    "Train/FracAbs_Comp_Qual": (abs_mean_qual / abs_sum).item(),
+                    "Train/FracAbs_Comp_Acc": (abs_mean_acc / abs_sum).item(),
+                    "Train/FracAbs_Comp_CCD": (abs_mean_ccd / abs_sum).item(),
+                    "Train/FracAbs_Comp_Speed": (abs_mean_speed / abs_sum).item(),
+
+                    # Raw 总分与分项的相关性：判断训练主要被谁驱动
+                    "Train/Corr_Total_Qual": _pearson_corr(total_raw_f, r_qual_f),
+                    "Train/Corr_Total_Acc": _pearson_corr(total_raw_f, r_acc_f),
+                    "Train/Corr_Total_CCD": _pearson_corr(total_raw_f, r_ccd_f),
+                    "Train/Corr_Total_Speed": _pearson_corr(total_raw_f, r_speed_f),
+                    "Train/Corr_Qual_Acc": _pearson_corr(r_qual_f, r_acc_f),
 
                     # [建议] 更细粒度的原始分项监控
-                    "Train/Raw_Qual_Mean": r_qual_tensor.mean().item(),
-                    "Train/Raw_Speed_Mean": r_speed_tensor.mean().item(),
+                    "Train/Raw_Qual_Mean": r_qual_f.mean().item(),
+                    "Train/Raw_Speed_Mean": r_speed_f.mean().item(),
+                    "Train/Raw_Qual_Std": r_qual_f.std(unbiased=False).item() if r_qual_f.numel() > 1 else 0.0,
+                    "Train/Raw_Qual_P10": torch.quantile(r_qual_f, 0.10).item() if r_qual_f.numel() > 0 else 0.0,
+                    "Train/Raw_Qual_P50": torch.quantile(r_qual_f, 0.50).item() if r_qual_f.numel() > 0 else 0.0,
+                    "Train/Raw_Qual_P90": torch.quantile(r_qual_f, 0.90).item() if r_qual_f.numel() > 0 else 0.0,
+
+                    "Train/Raw_Speed_Std": r_speed_f.std(unbiased=False).item() if r_speed_f.numel() > 1 else 0.0,
+                    "Train/Raw_Speed_P10": torch.quantile(r_speed_f, 0.10).item() if r_speed_f.numel() > 0 else 0.0,
+                    "Train/Raw_Speed_P50": torch.quantile(r_speed_f, 0.50).item() if r_speed_f.numel() > 0 else 0.0,
+                    "Train/Raw_Speed_P90": torch.quantile(r_speed_f, 0.90).item() if r_speed_f.numel() > 0 else 0.0,
+
+                    "Train/Raw_Acc_Mean": r_acc_f.mean().item(),
+                    "Train/Raw_Acc_Std": r_acc_f.std(unbiased=False).item() if r_acc_f.numel() > 1 else 0.0,
+                    "Train/Raw_Acc_P10": torch.quantile(r_acc_f, 0.10).item() if r_acc_f.numel() > 0 else 0.0,
+                    "Train/Raw_Acc_P50": torch.quantile(r_acc_f, 0.50).item() if r_acc_f.numel() > 0 else 0.0,
+                    "Train/Raw_Acc_P90": torch.quantile(r_acc_f, 0.90).item() if r_acc_f.numel() > 0 else 0.0,
+
+                    "Train/Raw_CCD_Mean": r_ccd_f.mean().item(),
+                    "Train/Raw_CCD_Std": r_ccd_f.std(unbiased=False).item() if r_ccd_f.numel() > 1 else 0.0,
+                    "Train/Raw_CCD_P10": torch.quantile(r_ccd_f, 0.10).item() if r_ccd_f.numel() > 0 else 0.0,
+                    "Train/Raw_CCD_P50": torch.quantile(r_ccd_f, 0.50).item() if r_ccd_f.numel() > 0 else 0.0,
+                    "Train/Raw_CCD_P90": torch.quantile(r_ccd_f, 0.90).item() if r_ccd_f.numel() > 0 else 0.0,
+
+                    # 每个 prompt 内 rollouts 的命中率（0~1），用于判断 sparse success 是否在增加
+                    "Train/Acc_RolloutRate": r_acc_tensor.mean().item(),
+                    "Train/Acc_RolloutHits": r_acc_tensor.sum().item(),
                 }
 
                 # Histograms can be heavy; log them less frequently.
+                hist_logged = False
                 if args.wandb_hist_every and (i == 0 or (i + 1) % args.wandb_hist_every == 0):
                     # Per-rollout raw total reward distribution ("班级成绩分布")
                     batch_raw_rewards = total_raw_reward.detach().float().cpu().numpy()
@@ -908,6 +1018,10 @@ def main():
                         "Train/Dist_RawTotal": wandb.Histogram(batch_raw_rewards),
                         "Train/Dist_BlockLen": wandb.Histogram(all_block_lens),
                     })
+                    hist_logged = True
+
+                # Debug marker: did we emit histograms this step?
+                log_dict["Train/WandbHistLogged"] = int(hist_logged)
 
                 wandb.log(log_dict)
             if i == 0 or (i + 1) % 10 == 0:

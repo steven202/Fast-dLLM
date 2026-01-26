@@ -204,7 +204,7 @@ class CachedTokenAligner:
     Pre-computes ALL token translations into a GPU Lookup Table.
     Eliminates CPU String operations during training.
     """
-    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda", max_fragments=2, max_tgt_tokens=2):
+    def __init__(self, src_tokenizer, tgt_tokenizer, device="cuda", max_fragments=4, max_tgt_tokens=4):
         self.device = device
         self.src_tokenizer = src_tokenizer # Guidance
         self.tgt_tokenizer = tgt_tokenizer # Backbone

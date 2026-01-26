@@ -6,6 +6,7 @@ import torch
 import logging
 from tqdm import tqdm
 from typing import Optional, Union, List
+from collections import Counter
 
 # Set environment variables for evaluation safety and remote code
 os.environ["HF_ALLOW_CODE_EVAL"] = "1"
@@ -38,6 +39,45 @@ eval_logger = logging.getLogger(__name__)
 _LOG_FILE = None
 _LOG_INITIALIZED = False
 _WANDB_INITIALIZED = False
+
+
+def _to_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in ("1", "true", "t", "yes", "y", "on"):
+            return True
+        if v in ("0", "false", "f", "no", "n", "off", ""):
+            return False
+    return bool(value)
+
+
+def _to_int(value, default: int = 0) -> int:
+    if value is None:
+        return int(default)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        v = value.strip()
+        if v == "":
+            return int(default)
+        try:
+            return int(v)
+        except Exception:
+            return int(default)
+    try:
+        return int(value)
+    except Exception:
+        return int(default)
 
 
 def _sanitize_name_segment(value: str) -> str:
@@ -181,6 +221,7 @@ class AdaptiveBase(LM):
         wandb_project: str = "adaptive-dllm-eval",
         wandb_run_name: Optional[str] = None,
         wandb_dir: str = "./wandb_log",
+        wandb_hist_every: int = 10,
         # Generation/Policy args
         gen_length: int = 256,
         steps: int = 256,
@@ -195,6 +236,7 @@ class AdaptiveBase(LM):
         dual_cache: bool = False,
         factor: float = 1.0,
         show_speed: bool = False,
+        show_actions: bool = False,
         **kwargs
     ):
         super().__init__()
@@ -208,6 +250,13 @@ class AdaptiveBase(LM):
         self.threshold = float(threshold)
         self.guidance_gamma = float(guidance_gamma)
         self.guidance_temperature = float(guidance_temperature)
+        self.show_speed = _to_bool(show_speed)
+        self.show_actions = _to_bool(show_actions)
+        self.wandb_hist_every = _to_int(wandb_hist_every, default=10)
+        self._action_counter = Counter()
+        self._block_len_counter = Counter()
+        self._hist_buf_action_blocklens: List[int] = []
+        self._hist_buf_blocklens: List[int] = []
         self._wandb = None
         inferred_aligner = infer_aligner_type_from_policy(policy_path)
         if aligner_type == "static" and inferred_aligner and inferred_aligner != aligner_type:
@@ -227,10 +276,10 @@ class AdaptiveBase(LM):
             block_len_max=self.block_len_max,
         )
         tee_log_file = None
-        if enable_tee:
+        if _to_bool(enable_tee):
             tee_log_file = setup_eval_logging(log_dir=log_dir, run_name=run_name)
         tee_log_path = os.path.abspath(tee_log_file.name) if tee_log_file is not None else None
-        if wandb:
+        if _to_bool(wandb):
             self._wandb = init_wandb(project=wandb_project, run_name=wandb_run_name or run_name, wandb_dir=wandb_dir, tee_log_path=tee_log_path)
         
         # Load Model
@@ -295,7 +344,7 @@ class AdaptiveBase(LM):
             except Exception as e:
                 eval_logger.warning(f"Could not attach aligner: {e}")
 
-        if use_cache or dual_cache:
+        if _to_bool(use_cache) or _to_bool(dual_cache):
             eval_logger.warning("Prefix/Dual Cache requested but Adaptive Policy rollout does not strictly implement KV-caching yet. Running standard adaptive rollout.")
 
     def generate_until(self, requests):
@@ -367,6 +416,18 @@ class AdaptiveBase(LM):
             gold = extract_gold_answer(req.doc) if hasattr(req, "doc") else ""
             dataset_type = infer_dataset_type(req.doc) if hasattr(req, "doc") else "gsm8k"
             is_correct = is_correct_smart(gen_text, gold, dataset_type) if gold else False
+
+            # ---- Action / BlockLen analysis (per-rollout + running distribution) ----
+            policy_actions = list(getattr(res, "policy_actions", []) or [])
+            block_lens = list(getattr(res, "block_lens", []) or [])
+            if block_lens:
+                self._block_len_counter.update(block_lens)
+                self._hist_buf_blocklens.extend(block_lens)
+            if policy_actions:
+                # policy_actions are (block_len - 1)
+                self._action_counter.update(policy_actions)
+                self._hist_buf_action_blocklens.extend([a + 1 for a in policy_actions])
+
             total_count += 1
             if is_correct:
                 correct_count += 1
@@ -385,14 +446,70 @@ class AdaptiveBase(LM):
             print(gold)
             print(f"Correct: {is_correct}")
             print(f"NFE (this): {getattr(res, 'nfe', 0)} | Avg NFE: {avg_nfe:.2f}")
+
+            if self.show_actions or self.show_speed:
+                if policy_actions:
+                    # Convert actions -> block_len for easier interpretation
+                    action_block_lens = [a + 1 for a in policy_actions]
+                    action_counter = Counter(action_block_lens)
+                    top_actions = action_counter.most_common(8)
+                    print(f"Policy Actions (block_len-1): {policy_actions}")
+                    print(f"Action BlockLens (a+1): {action_block_lens}")
+                    print(f"Action Dist Top8: {top_actions}")
+                else:
+                    print("Policy Actions: (none)")
+
+                if block_lens:
+                    bl_counter = Counter(block_lens)
+                    top_bl = bl_counter.most_common(8)
+                    print(f"Block Lengths: {block_lens}")
+                    print(f"BlockLen Dist Top8: {top_bl}")
+                else:
+                    print("Block Lengths: (none)")
+
+                # Running (cumulative) view across requests
+                if self._action_counter:
+                    running_top_actions = self._action_counter.most_common(8)
+                    # Display as block_len not action index
+                    running_top_actions = [(a + 1, c) for (a, c) in running_top_actions]
+                    print(f"Running Action BlockLen Top8: {running_top_actions}")
+                if self._block_len_counter:
+                    running_top_bl = self._block_len_counter.most_common(8)
+                    print(f"Running BlockLen Top8: {running_top_bl}")
+
             print("=" * 60)
 
             if self._wandb is not None:
-                self._wandb.log({
+                wandb_payload = {
                     "eval/accuracy": acc,
                     "eval/correct": int(is_correct),
                     "eval/step": total_count,
-                })
+                }
+
+                # Light-weight per-sample scalars
+                if self.show_actions or self.show_speed:
+                    if policy_actions:
+                        action_block_lens = [a + 1 for a in policy_actions]
+                        wandb_payload.update({
+                            "eval/action_blocklen_mean": float(sum(action_block_lens)) / max(1.0, float(len(action_block_lens))),
+                            "eval/action_blocklen_max": float(max(action_block_lens)),
+                            "eval/action_blocklen_min": float(min(action_block_lens)),
+                        })
+
+                # Heavy histograms: log every N eval steps (0 disables)
+                hist_logged = False
+                if self.wandb_hist_every and (total_count == 1 or (total_count % self.wandb_hist_every == 0)):
+                    if self._hist_buf_action_blocklens:
+                        wandb_payload["eval/dist_action_blocklen"] = self._wandb.Histogram(self._hist_buf_action_blocklens)
+                    if self._hist_buf_blocklens:
+                        wandb_payload["eval/dist_blocklen"] = self._wandb.Histogram(self._hist_buf_blocklens)
+                    # reset buffers to keep memory bounded
+                    self._hist_buf_action_blocklens.clear()
+                    self._hist_buf_blocklens.clear()
+                    hist_logged = True
+
+                wandb_payload["eval/WandbHistLogged"] = int(hist_logged)
+                self._wandb.log(wandb_payload)
             
             results.append(gen_text)
             
