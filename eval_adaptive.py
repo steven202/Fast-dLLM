@@ -47,6 +47,19 @@ def _sanitize_name_segment(value: str) -> str:
     return value
 
 
+def infer_aligner_type_from_policy(policy_path: str) -> Optional[str]:
+    if not policy_path:
+        return None
+    name = os.path.basename(policy_path).lower()
+    if "_cached_" in name:
+        return "cached"
+    if "_robust_" in name:
+        return "robust"
+    if "_static_" in name:
+        return "static"
+    return None
+
+
 def build_eval_run_name(
     model_type: str,
     pretrained: str,
@@ -81,13 +94,18 @@ def setup_eval_logging(log_dir: str = "./eval_log", run_name: Optional[str] = No
     return f
 
 
-def init_wandb(project: str, run_name: Optional[str], wandb_dir: str):
+def init_wandb(project: str, run_name: Optional[str], wandb_dir: str, tee_log_path: Optional[str] = None):
     global _WANDB_INITIALIZED
     if _WANDB_INITIALIZED:
         return None
     try:
         import wandb as _wandb
-        _wandb.init(project=project, dir=wandb_dir, name=run_name)
+        wandb_config = {"tee_log_path": tee_log_path} if tee_log_path else None
+        _wandb.init(project=project, dir=wandb_dir, name=run_name, config=wandb_config)
+        if _wandb.run is not None:
+            print(f"WandB Log Dir (tee path): {_wandb.run.dir}")
+            if tee_log_path:
+                print(f"Tee Log Path: {tee_log_path}")
         _WANDB_INITIALIZED = True
         return _wandb
     except Exception as e:
@@ -191,6 +209,13 @@ class AdaptiveBase(LM):
         self.guidance_gamma = float(guidance_gamma)
         self.guidance_temperature = float(guidance_temperature)
         self._wandb = None
+        inferred_aligner = infer_aligner_type_from_policy(policy_path)
+        if aligner_type == "static" and inferred_aligner and inferred_aligner != aligner_type:
+            eval_logger.warning(
+                f"aligner_type='{aligner_type}' but policy filename suggests '{inferred_aligner}'. Using '{inferred_aligner}'."
+            )
+            aligner_type = inferred_aligner
+
         run_name = build_eval_run_name(
             model_type=model_type,
             pretrained=pretrained,
@@ -201,10 +226,12 @@ class AdaptiveBase(LM):
             steps=self.steps,
             block_len_max=self.block_len_max,
         )
+        tee_log_file = None
         if enable_tee:
-            setup_eval_logging(log_dir=log_dir, run_name=run_name)
+            tee_log_file = setup_eval_logging(log_dir=log_dir, run_name=run_name)
+        tee_log_path = os.path.abspath(tee_log_file.name) if tee_log_file is not None else None
         if wandb:
-            self._wandb = init_wandb(project=wandb_project, run_name=wandb_run_name or run_name, wandb_dir=wandb_dir)
+            self._wandb = init_wandb(project=wandb_project, run_name=wandb_run_name or run_name, wandb_dir=wandb_dir, tee_log_path=tee_log_path)
         
         # Load Model
         eval_logger.info(f"Loading {model_type} model: {pretrained}")

@@ -545,16 +545,14 @@ def build_checkpoint_name(args, timestamp: Optional[str] = None) -> str:
     reward_part = _sanitize_ckpt_segment(args.ar_reward_model or "none")
     aligner_part = _sanitize_ckpt_segment(args.aligner_type or "static")
     time_part = timestamp or datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}_{aligner_part}_{time_part}.pt"
+    return f"./checkpoints/policy_{args.model_type}_{datasets_part}_{guidance_part}_{reward_part}_{aligner_part}_B{args.block_len_max}_{time_part}.pt"
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_type", choices=["llada", "dream"], default="llada")
     parser.add_argument("--model_path", type=str, default="GSAI-ML/LLaDA-8B-Instruct")
     parser.add_argument("--resume", type=str2bool, default=False)
-    # [MODIFIED] Default is None so we can set it dynamically based on model_type
-    parser.add_argument("--ar_guidance_model", type=str, default=None)
-    
+    parser.add_argument("--ar_guidance_model", type=str, choices=["meta-llama/Llama-3.2-1B-Instruct", "facebook/MobileLLM-R1.5-140M", "TinyLlama/TinyLlama-1.1B-Chat-v1.0", "Qwen/Qwen3-0.6B", "Alibaba-Apsara/DASD-4B-Thinking"], default="Qwen/Qwen3-0.6B")
     parser.add_argument("--ar_reward_model", type=str, choices=["Qwen/Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-8B", "Alibaba-Apsara/DASD-4B-Thinking"], default="Qwen/Qwen3-8B")
     parser.add_argument("--reward_offload_dir", type=str, default="./offload_reward")
     parser.add_argument("--device", type=str, default="cuda")
@@ -587,6 +585,8 @@ def main():
     parser.add_argument("--save_path", type=str, default=None)
     parser.add_argument("--load_path", type=str, default=None)
     parser.add_argument("--wandb", type=str2bool, default=True)
+    parser.add_argument("--wandb_hist_every", type=int, default=10,
+                        help="Log WandB histograms every N steps (0 to disable).")
     parser.add_argument("--debug", type=str2bool, default=True)
     args = parser.parse_args()
     set_seed(args.seed)
@@ -611,7 +611,8 @@ def main():
         args.load_path = build_checkpoint_name(args, timestamp=run_timestamp)
 
     train_run_name = os.path.splitext(os.path.basename(args.save_path))[0]
-    setup_logging(run_name=train_run_name)
+    tee_log_file = setup_logging(run_name=train_run_name)
+    tee_log_path = os.path.abspath(tee_log_file.name) if tee_log_file is not None else None
 
     prompts = load_prompts(args.datasets, max_samples=args.max_samples)
 
@@ -703,10 +704,16 @@ def main():
         try:
             import wandb as _wandb
             wandb = _wandb
-            wandb.init(project="adaptive-dllm", dir="./wandb_log", config=vars(args), name=f"policy_{args.model_type}_{args.aligner_type}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
+            wandb_config = dict(vars(args))
+            if tee_log_path is not None:
+                wandb_config["tee_log_path"] = tee_log_path
+            wandb.init(project="adaptive-dllm", dir="./wandb_log", config=wandb_config, name=f"policy_{args.model_type}_{args.aligner_type}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
             if wandb.run is not None:
                 print(f"WandB Run URL: {wandb.run.url}")
                 print(f"WandB Project URL: {wandb.run.project_url}")
+                print(f"WandB Log Dir (tee path): {wandb.run.dir}")
+                if tee_log_path is not None:
+                    print(f"Tee Log Path: {tee_log_path}")
         except Exception:
             use_wandb = False
             print("wandb import failed.")
@@ -816,6 +823,16 @@ def main():
             a_acc_weighted = args.w_acc * a_acc
             a_ccd_weighted = args.lambda_ccd * a_ccd
             a_total = a_q_weighted + a_s_weighted + a_acc_weighted - a_ccd_weighted
+
+            # =============== [新增] 计算 Total Raw Reward ===============
+            # 这是模型实际获得的“绝对分数”，不受 Batch Normalization 影响
+            total_raw_reward = (
+                args.w1 * r_qual_tensor
+                + args.w2 * r_speed_tensor
+                + args.w_acc * r_acc_tensor
+                - args.lambda_ccd * r_ccd_tensor
+            )
+            # ==========================================================
             
 
             losses = []
@@ -854,7 +871,7 @@ def main():
                     print(f"[{valid}] {text}")
                 print("=" * 80 + "\n")
             if use_wandb:
-                wandb.log({
+                log_dict = {
                     "Train/Accuracy": correct_count / total_count if total_count > 0 else 0.0,
                     "Train/a_total": a_total.mean().item(),
                     "Train/Loss": loss_total.item(),
@@ -870,7 +887,29 @@ def main():
                     "Train/a_s_weighted": a_s_weighted.mean().item(),
                     "Train/a_acc_weighted": a_acc_weighted.mean().item(),
                     "Train/a_ccd_weighted": a_ccd_weighted.mean().item(),
-                })
+
+                    # [新增] 原始总分监控（不受 Advantage 归一化影响）
+                    "Train/Raw_Total_Mean": total_raw_reward.mean().item(),
+                    "Train/Raw_Total_Max": total_raw_reward.max().item(),
+                    "Train/Raw_Total_Min": total_raw_reward.min().item(),
+
+                    # [建议] 更细粒度的原始分项监控
+                    "Train/Raw_Qual_Mean": r_qual_tensor.mean().item(),
+                    "Train/Raw_Speed_Mean": r_speed_tensor.mean().item(),
+                }
+
+                # Histograms can be heavy; log them less frequently.
+                if args.wandb_hist_every and (i == 0 or (i + 1) % args.wandb_hist_every == 0):
+                    # Per-rollout raw total reward distribution ("班级成绩分布")
+                    batch_raw_rewards = total_raw_reward.detach().float().cpu().numpy()
+                    # Per-block block length distribution ("驾驶习惯")
+                    all_block_lens = [length for r in rollouts for length in r.block_lens]
+                    log_dict.update({
+                        "Train/Dist_RawTotal": wandb.Histogram(batch_raw_rewards),
+                        "Train/Dist_BlockLen": wandb.Histogram(all_block_lens),
+                    })
+
+                wandb.log(log_dict)
             if i == 0 or (i + 1) % 10 == 0:
                 os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
                 torch.save(
