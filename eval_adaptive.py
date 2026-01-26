@@ -4,6 +4,7 @@ import os
 import sys
 import torch
 import logging
+import types
 from tqdm import tqdm
 from typing import Optional, Union, List
 from collections import Counter
@@ -30,6 +31,11 @@ try:
     from dream.model.modeling_dream import DreamModel
     from utils.eval_utils import is_correct_smart
     from utils.logging_utils import Tee
+    from utils.model_utils import get_mask_id
+    try:
+        from llada.generate import generate_with_prefix_cache, generate_with_dual_cache
+    except ImportError:
+        from generate import generate_with_prefix_cache, generate_with_dual_cache
 except ImportError as e:
     print(f"Error importing modules: {e}")
     sys.exit(1)
@@ -39,6 +45,14 @@ eval_logger = logging.getLogger(__name__)
 _LOG_FILE = None
 _LOG_INITIALIZED = False
 _WANDB_INITIALIZED = False
+
+
+class _CachedRollout:
+    def __init__(self, generated_ids: torch.LongTensor, nfe: int = 0):
+        self.generated_ids = generated_ids
+        self.nfe = int(nfe)
+        self.policy_actions = []
+        self.block_lens = []
 
 
 def _to_bool(value) -> bool:
@@ -250,8 +264,11 @@ class AdaptiveBase(LM):
         self.threshold = float(threshold)
         self.guidance_gamma = float(guidance_gamma)
         self.guidance_temperature = float(guidance_temperature)
+        self.factor = None if factor is None else float(factor)
         self.show_speed = _to_bool(show_speed)
         self.show_actions = _to_bool(show_actions)
+        self.use_cache = _to_bool(use_cache)
+        self.dual_cache = _to_bool(dual_cache)
         self.wandb_hist_every = _to_int(wandb_hist_every, default=10)
         self._action_counter = Counter()
         self._block_len_counter = Counter()
@@ -344,8 +361,8 @@ class AdaptiveBase(LM):
             except Exception as e:
                 eval_logger.warning(f"Could not attach aligner: {e}")
 
-        if _to_bool(use_cache) or _to_bool(dual_cache):
-            eval_logger.warning("Prefix/Dual Cache requested but Adaptive Policy rollout does not strictly implement KV-caching yet. Running standard adaptive rollout.")
+        if self.use_cache or self.dual_cache:
+            eval_logger.info("Prefix/Dual cache enabled for eval_adaptive. Using cached generation path; adaptive rollout stats are disabled for this mode.")
 
     def generate_until(self, requests):
         if not requests:
@@ -368,36 +385,101 @@ class AdaptiveBase(LM):
             if isinstance(until, str): until = [until]
             
             with torch.no_grad():
-                if self.model_type == "llada":
-                    res = rollout_llada(
-                        model=self.model,
-                        policy_net=self.policy_net,
-                        tokenizer=self.tokenizer,
-                        prompt=prompt,
-                        ar_guidance_model=self.ar_guidance_model,
-                        guidance_gamma=self.guidance_gamma,
-                        guidance_temperature=self.guidance_temperature,
-                        gen_length=max_new_tokens,
-                        steps=current_steps, 
-                        block_len_min=self.block_len_min,
-                        block_len_max=self.block_len_max,
-                        threshold=self.threshold
-                    )
+                if self.use_cache or self.dual_cache:
+                    if self.model_type == "llada":
+                        prompt_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
+                        mask_id = get_mask_id("llada", self.model)
+                        if self.dual_cache:
+                            generated_ids, nfe = generate_with_dual_cache(
+                                self.model,
+                                prompt_ids,
+                                steps=current_steps,
+                                gen_length=max_new_tokens,
+                                block_length=self.block_len_max,
+                                temperature=0.0,
+                                remasking="low_confidence",
+                                mask_id=mask_id,
+                                threshold=self.threshold,
+                                factor=self.factor,
+                                ar_guidance_model=self.ar_guidance_model,
+                                guidance_temperature=self.guidance_temperature,
+                                guidance_gamma=self.guidance_gamma,
+                            )
+                        else:
+                            generated_ids, nfe = generate_with_prefix_cache(
+                                self.model,
+                                prompt_ids,
+                                steps=current_steps,
+                                gen_length=max_new_tokens,
+                                block_length=self.block_len_max,
+                                temperature=0.0,
+                                remasking="low_confidence",
+                                mask_id=mask_id,
+                                threshold=self.threshold,
+                                factor=self.factor,
+                                ar_guidance_model=self.ar_guidance_model,
+                                guidance_temperature=self.guidance_temperature,
+                                guidance_gamma=self.guidance_gamma,
+                            )
+                        res = _CachedRollout(generated_ids, nfe=nfe)
+                    else:
+                        use_cache_for_dream = self.use_cache or self.dual_cache
+                        if use_cache_for_dream:
+                            from dream.model.generation_utils_block import DreamGenerationMixin as _DreamGenMixin
+                        else:
+                            from dream.model.generation_utils import DreamGenerationMixin as _DreamGenMixin
+                        self.model.diffusion_generate = types.MethodType(_DreamGenMixin.diffusion_generate, self.model)
+                        self.model._sample = types.MethodType(_DreamGenMixin._sample, self.model)
+
+                        prompt_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
+                        pad_id = self.tokenizer.pad_token_id
+                        attention_mask = prompt_ids.ne(pad_id) if pad_id is not None else None
+                        gen_out = self.model.diffusion_generate(
+                            prompt_ids,
+                            attention_mask=attention_mask,
+                            max_new_tokens=max_new_tokens,
+                            output_history=False,
+                            return_dict_in_generate=True,
+                            steps=current_steps,
+                            temperature=0.0,
+                            threshold=self.threshold,
+                            dual_cache=self.dual_cache,
+                            ar_guidance_model=self.ar_guidance_model,
+                            guidance_temperature=self.guidance_temperature,
+                            guidance_gamma=self.guidance_gamma,
+                        )
+                        res = _CachedRollout(gen_out.sequences, nfe=0)
                 else:
-                    res = rollout_dream(
-                        model=self.model,
-                        policy_net=self.policy_net,
-                        tokenizer=self.tokenizer,
-                        prompt=prompt,
-                        ar_guidance_model=self.ar_guidance_model,
-                        guidance_gamma=self.guidance_gamma,
-                        guidance_temperature=self.guidance_temperature,
-                        gen_length=max_new_tokens,
-                        steps=current_steps, 
-                        block_len_min=self.block_len_min,
-                        block_len_max=self.block_len_max,
-                        threshold=self.threshold
-                    )
+                    if self.model_type == "llada":
+                        res = rollout_llada(
+                            model=self.model,
+                            policy_net=self.policy_net,
+                            tokenizer=self.tokenizer,
+                            prompt=prompt,
+                            ar_guidance_model=self.ar_guidance_model,
+                            guidance_gamma=self.guidance_gamma,
+                            guidance_temperature=self.guidance_temperature,
+                            gen_length=max_new_tokens,
+                            steps=current_steps, 
+                            block_len_min=self.block_len_min,
+                            block_len_max=self.block_len_max,
+                            threshold=self.threshold
+                        )
+                    else:
+                        res = rollout_dream(
+                            model=self.model,
+                            policy_net=self.policy_net,
+                            tokenizer=self.tokenizer,
+                            prompt=prompt,
+                            ar_guidance_model=self.ar_guidance_model,
+                            guidance_gamma=self.guidance_gamma,
+                            guidance_temperature=self.guidance_temperature,
+                            gen_length=max_new_tokens,
+                            steps=current_steps, 
+                            block_len_min=self.block_len_min,
+                            block_len_max=self.block_len_max,
+                            threshold=self.threshold
+                        )
 
             # Decode just the new tokens
             prompt_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
