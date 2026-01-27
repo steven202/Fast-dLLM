@@ -24,7 +24,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from utils.helpers import set_seed, str2bool
 from utils.aligner import StaticTokenAligner, RobustTokenAligner, CachedTokenAligner
-from utils.eval_utils import is_correct_smart
+from utils.eval_utils import is_correct_smart, accuracy_reward
 from utils.logging_utils import setup_logging
 from utils.data_utils import load_prompts
 from utils.model_utils import get_mask_id
@@ -971,7 +971,7 @@ def main():
                 
                 # Accuracy Check
                 # Accuracy Check
-                is_right = is_correct_smart(gen_text, answer, dataset_type)
+                is_right = accuracy_reward(gen_text, answer, dataset_type, gsm8k_mode="flexible")
                 if is_right:
                     correct_count += 1
                 total_count += 1

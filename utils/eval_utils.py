@@ -93,6 +93,26 @@ def gsm8k_matches(pred: str, gold: str) -> dict:
         "raw_match": raw_match,
     }
 
+
+def accuracy_reward(pred: str, gold: str, dataset_type: str, gsm8k_mode: str = "flexible") -> bool:
+    """Return lm_eval-consistent correctness for reward.
+
+    gsm8k_mode: "flexible" or "strict" (defaults to flexible-extract).
+    """
+    if dataset_type == "gsm8k":
+        matches = gsm8k_matches(pred, gold)
+        if gsm8k_mode == "strict":
+            return matches["strict_match"]
+        return matches["flexible_match"]
+
+    if dataset_type == "math":
+        return hendrycks_math_is_correct(pred, gold)
+
+    if dataset_type in ["humaneval", "mbpp"]:
+        return normalize_code(pred) == normalize_code(gold)
+
+    return False
+
 def extract_answer_math(text):
     """Specific extractor for MATH/GSM8K"""
     # 1. Handle GSM8K style (####)
@@ -290,18 +310,7 @@ def normalize_code(code):
 def is_correct_smart(pred, gold, dataset_type):
     """Polymorphic evaluator"""
     try:
-        if dataset_type == "gsm8k":
-            # Use lm_eval gsm8k flexible-extract exact_match
-            return gsm8k_matches(pred, gold)["flexible_match"]
-
-        if dataset_type == "math":
-            return hendrycks_math_is_correct(pred, gold)
-            
-        elif dataset_type in ["humaneval", "mbpp"]:
-            # For code, Exact Match is very harsh. 
-            # We usually rely on NLL reward for code training.
-            # But for logging accuracy, we try normalized string match.
-            return normalize_code(pred) == normalize_code(gold)
+        return accuracy_reward(pred, gold, dataset_type, gsm8k_mode="flexible")
             
     except:
         # If conversion to float fails (e.g. comparing "5" to "x=5"), return False
