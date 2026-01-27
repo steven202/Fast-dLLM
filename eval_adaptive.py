@@ -1,5 +1,6 @@
 
 import argparse
+import re
 import os
 import sys
 import torch
@@ -11,6 +12,12 @@ from collections import Counter
 # Set environment variables for evaluation safety and remote code
 os.environ["HF_ALLOW_CODE_EVAL"] = "1"
 os.environ["HF_DATASETS_TRUST_REMOTE_CODE"] = "true"
+_fast_dllm_datasets_dir = os.environ.get("FAST_DLLM_DATASETS_DIR")
+if _fast_dllm_datasets_dir:
+    os.environ.setdefault(
+        "HF_DATASETS_CACHE",
+        os.path.expanduser(_fast_dllm_datasets_dir),
+    )
 os.environ.setdefault("LMEVAL_LOG_LEVEL", "INFO")
 
 print("[eval_adaptive] Initializing lm-eval. Task indexing and dataset cache setup can take a few minutes on first run.")
@@ -28,7 +35,7 @@ try:
     # Helper to load LLaDA/Dream models using their specific classes
     from llada.model.modeling_llada import LLaDAModelLM
     from dream.model.modeling_dream import DreamModel
-    from utils.eval_utils import is_correct_smart
+    from utils.eval_utils import is_correct_smart, extract_answer_math
     from utils.logging_utils import Tee
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -466,13 +473,54 @@ class AdaptiveBase(LM):
             else:
                 gen_text = ""
 
-            for stop in until:
-                if stop in gen_text:
-                    gen_text = gen_text.split(stop)[0]
 
             gold = extract_gold_answer(req.doc) if hasattr(req, "doc") else ""
             dataset_type = infer_dataset_type(req.doc) if hasattr(req, "doc") else "gsm8k"
-            is_correct = is_correct_smart(gen_text, gold, dataset_type) if gold else False
+
+            if self.model_type == "llada":
+                for stop in list(until):
+                    if stop in gen_text:
+                        gen_text = gen_text.split(stop)[0]
+            else:  # dream
+                eos_token = self.tokenizer.eos_token
+                if eos_token and eos_token in gen_text:
+                    gen_text = gen_text.split(eos_token)[0]
+                extra_stops = [
+                    "\nQuestion:",
+                    "\n\nQuestion:",
+                    "\nQ:",
+                    "\n\nQ:",
+                    "\nIn the context",
+                    "\n\nIn the context",
+                    "user:",
+                    "assistant:",
+                    "User:",
+                    "Assistant:",
+                ]
+                for stop in list(until) + extra_stops:
+                    if stop in gen_text:
+                        gen_text = gen_text.split(stop)[0]
+
+                if "\n\n" in gen_text:
+                    gen_text = gen_text.split("\n\n", 1)[0]
+
+                if gen_text.lstrip().startswith("Answer:"):
+                    gen_text = gen_text.lstrip().split("Answer:", 1)[1].lstrip()
+                raw_gen_text = gen_text
+                eval_text = raw_gen_text
+                if dataset_type == "gsm8k" and "####" in raw_gen_text:
+                    after = raw_gen_text.split("####", 1)[1]
+                    match = re.search(r"-?\d+\.?\d*", after.replace(",", ""))
+                    if match:
+                        eval_text = f"#### {match.group(0)}"
+                elif dataset_type == "math" and "####" in raw_gen_text:
+                    pred_val = extract_answer_math(raw_gen_text)
+                    if pred_val is not None:
+                        eval_text = f"#### {pred_val}"
+            if self.model_type == "llada":
+                is_correct = is_correct_smart(gen_text, gold, dataset_type) if gold else False
+            else:
+                is_correct = is_correct_smart(eval_text, gold, dataset_type) if gold else False
 
             # ---- Action / BlockLen analysis (per-rollout + running distribution) ----
             policy_actions = list(getattr(res, "policy_actions", []) or [])
@@ -498,7 +546,10 @@ class AdaptiveBase(LM):
             print("Question:")
             print(prompt)
             print("Answer:")
-            print(gen_text)
+            if self.model_type == "llada":
+                print(gen_text)
+            else:
+                print(raw_gen_text)
             print("Gold Answer:")
             print(gold)
             print(f"Correct: {is_correct}")
@@ -568,7 +619,10 @@ class AdaptiveBase(LM):
                 wandb_payload["eval/WandbHistLogged"] = int(hist_logged)
                 self._wandb.log(wandb_payload)
             
-            results.append(gen_text)
+            if self.model_type == "llada":
+                results.append(gen_text)
+            else:
+                results.append(raw_gen_text)
             
         return results
 

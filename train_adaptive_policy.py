@@ -60,6 +60,9 @@ def policy_logits(policy_net: torch.nn.Module, hidden: torch.Tensor, entropy: to
 
 
 def sample_block_len(policy_net, hidden: torch.Tensor, entropy: torch.Tensor, guidance_entropy: torch.Tensor, min_len: int, max_len: int) -> Tuple[int, torch.Tensor]:
+    if min_len == max_len:
+        logprob = torch.tensor(0.0, device=hidden.device, dtype=hidden.dtype)
+        return min_len, logprob
     # [FIX] Sanitize inputs: replace NaN/Inf with 0 to prevent network pollution
     # hidden = torch.nan_to_num(hidden, nan=0.0, posinf=0.0, neginf=0.0)
     # entropy = torch.nan_to_num(entropy, nan=0.0, posinf=0.0, neginf=0.0)
@@ -355,7 +358,7 @@ def rollout_llada(
         ar_logits = None
         guidance_target = None
 
-        if ar_guidance_model is not None:
+        if ar_guidance_model is not None and guidance_gamma != 0.0:
             # Use Static Aligner if attached
             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
                 # 1. Translate Context (Backbone -> Guidance)
@@ -655,7 +658,7 @@ def rollout_dream(
         ar_logits = None
         guidance_target = None
         
-        if ar_guidance_model is not None:
+        if ar_guidance_model is not None and guidance_gamma != 0.0:
             if hasattr(ar_guidance_model, "logit_aligner") and ar_guidance_model.logit_aligner is not None:
                 ar_inputs = ar_guidance_model.logit_aligner.translate_input(context_ids, return_attention_mask=True)
                 if isinstance(ar_inputs, tuple):
@@ -694,9 +697,20 @@ def rollout_dream(
 
         if use_cache or dual_cache:
             need_hidden = guidance_target is not None and guidance_gamma != 0.0
-            out_full = model(x, use_cache=True, dual_cache=dual_cache, output_hidden_states=True)
+            out_full = model(
+                x,
+                use_cache=True,
+                dual_cache=dual_cache,
+                output_hidden_states=True,
+            )
             past_key_values = out_full.past_key_values
             nfe += 1
+
+            if not dual_cache:
+                trimmed_pkv = []
+                for layer_kv in past_key_values:
+                    trimmed_pkv.append(tuple(kv[:, :block_start, :] for kv in layer_kv))
+                past_key_values = trimmed_pkv
 
             hidden_states = out_full.hidden_states[-1]
             hidden_states = apply_guidance_dream(model, hidden_states, guidance_target, guidance_gamma)
@@ -727,8 +741,11 @@ def rollout_dream(
                 replace_position[:, block_start:block_end] = True
 
             i = 1
+            limit_steps = (threshold_impl != "dream")
             while True:
-                if i >= steps_per_block or (x[:, block_start:block_end] == mask_id).sum() == 0:
+                if (x[:, block_start:block_end] == mask_id).sum() == 0:
+                    break
+                if limit_steps and i >= steps_per_block:
                     break
 
                 if dual_cache:
@@ -796,10 +813,13 @@ def rollout_dream(
 
                 i += 1
                 nfe += 1
+                if (x[:, block_start:block_end] == mask_id).sum() == 0:
+                    break
         else:
             i = 0
+            limit_steps = (threshold_impl != "dream")
             while True:
-                if i >= steps_per_block:
+                if limit_steps and i >= steps_per_block:
                     break
 
                 mask_index = (x == mask_id)
@@ -965,7 +985,7 @@ def build_checkpoint_name(args, timestamp: Optional[str] = None) -> str:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_type", choices=["llada", "dream"], default="llada")
-    parser.add_argument("--model_path", type=str, default="GSAI-ML/LLaDA-8B-Instruct")
+    parser.add_argument("--model_path", type=str, choices=["Dream-org/Dream-v0-Base-7B", "GSAI-ML/LLaDA-8B-Instruct"], default="GSAI-ML/LLaDA-8B-Instruct")
     parser.add_argument("--resume", type=str2bool, default=False)
     parser.add_argument("--ar_guidance_model", type=str, choices=["meta-llama/Llama-3.2-1B-Instruct", "facebook/MobileLLM-R1.5-140M", "TinyLlama/TinyLlama-1.1B-Chat-v1.0", "Qwen/Qwen3-0.6B", "Alibaba-Apsara/DASD-4B-Thinking"], default="Qwen/Qwen3-0.6B")
     parser.add_argument("--ar_reward_model", type=str, choices=["Qwen/Qwen3-30B-A3B-Instruct-2507", "Qwen/Qwen3-8B", "Alibaba-Apsara/DASD-4B-Thinking"], default="Qwen/Qwen3-8B")
@@ -1008,6 +1028,8 @@ def main():
     parser.add_argument("--wandb_hist_every", type=int, default=10,
                         help="Log WandB histograms every N steps (0 to disable).")
     parser.add_argument("--debug", type=str2bool, default=True)
+    parser.add_argument("--use_fewshot", type=str2bool, default=False,
+                        help="Whether to prepend dataset-specific few-shot examples to prompts.")
     args = parser.parse_args()
     set_seed(args.seed)
 
@@ -1062,10 +1084,21 @@ def main():
     train_run_name = os.path.splitext(os.path.basename(args.save_path))[0]
     if args.threshold_impl:
         train_run_name = f"{train_run_name}_{args.threshold_impl}"
+    train_run_name = f"{train_run_name}_S{args.steps}_fewshot{int(bool(args.use_fewshot))}"
     tee_log_file = setup_logging(run_name=train_run_name)
     tee_log_path = os.path.abspath(tee_log_file.name) if tee_log_file is not None else None
 
-    prompts = load_prompts(args.datasets, max_samples=args.max_samples)
+    fewshot_map = {
+        "gsm8k": 5,
+        "math": 4,
+        "humaneval": 0,
+        "mbpp": 3,
+    }
+    prompts = load_prompts(
+        args.datasets,
+        max_samples=args.max_samples,
+        fewshot_map=fewshot_map if args.use_fewshot else None,
+    )
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
@@ -1162,7 +1195,7 @@ def main():
                 project="adaptive-dllm",
                 dir="./wandb_log",
                 config=wandb_config,
-                name=f"policy_{args.model_type}_{args.aligner_type}_{args.threshold_impl}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                name=f"policy_{args.model_type}_{args.aligner_type}_{args.threshold_impl}_S{args.steps}_fewshot{int(bool(args.use_fewshot))}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
             )
             if wandb.run is not None:
                 print(f"WandB Run URL: {wandb.run.url}")
