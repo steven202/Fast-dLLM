@@ -13,6 +13,14 @@ class Tee(object):
     def flush(self):
         for f in self.files:
             f.flush()
+    def isatty(self):
+        for f in self.files:
+            if hasattr(f, "isatty"):
+                try:
+                    return bool(f.isatty())
+                except Exception:
+                    continue
+        return False
 
 
 def _sanitize_log_segment(value: str) -> str:

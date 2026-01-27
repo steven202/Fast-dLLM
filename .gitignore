@@ -12,3 +12,9 @@ wandb_log
 checkpoints
 train_log
 wandb_logs
+eval_log
+Dyna_DLM
+offload_reward
+dream_original
+deprecated/
+lm-evaluation-harness/

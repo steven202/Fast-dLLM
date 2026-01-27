@@ -120,9 +120,19 @@ class DreamRotaryEmbedding(nn.Module):
         else:
             # BC: "rope_type" was originally "type"
             if config.rope_scaling is not None:
-                self.rope_type = config.rope_scaling.get("rope_type", config.rope_scaling.get("type"))
+                rope_scaling = dict(config.rope_scaling)
+                self.rope_type = rope_scaling.get("rope_type", rope_scaling.get("type"))
+                if self.rope_type is None or self.rope_type == "default":
+                    self.rope_type = "linear"
+                if self.rope_type == "linear":
+                    factor = rope_scaling.get("factor", 1.0)
+                    config.rope_scaling = {"rope_type": "linear", "factor": factor}
+                self.rope_kwargs = {}
             else:
-                self.rope_type = "default"
+                # Fallback to linear RoPE with factor=1.0 when config is missing
+                self.rope_type = "linear"
+                config.rope_scaling = {"rope_type": "linear", "factor": 1.0}
+                self.rope_kwargs = {}
             self.max_seq_len_cached = config.max_position_embeddings
             self.original_max_seq_len = config.max_position_embeddings
 
@@ -428,14 +438,20 @@ class DreamSdpaAttention(DreamAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
+        replace_indices = None
         if past_key_value is not None:
             if dual_cache:
                 past_key, past_value = past_key_value
-                replace_indices = replace_position.nonzero(as_tuple=True)[1] 
-                past_key[:, replace_indices] = key_states
-                key_states = past_key
-                past_value[:, replace_indices] = value_states
-                value_states = past_value
+                if replace_position is not None:
+                    replace_indices = replace_position.nonzero(as_tuple=True)[1]
+                    if replace_indices.numel() > 0:
+                        past_key[:, replace_indices] = key_states
+                        past_value[:, replace_indices] = value_states
+                        key_states = past_key
+                        value_states = past_value
+                if replace_indices is None or replace_indices.numel() == 0:
+                    key_states = past_key
+                    value_states = past_value
             else:
                 past_key, past_value = past_key_value
                 key_states = torch.cat([past_key, key_states], dim=-2)
@@ -458,8 +474,14 @@ class DreamSdpaAttention(DreamAttention):
         else:
             cos, sin = position_embeddings
         
-        if dual_cache:
-            query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, block_end_index=replace_indices.max()+1)
+        if dual_cache and replace_indices is not None and replace_indices.numel() > 0:
+            query_states, key_states = apply_rotary_pos_emb(
+                query_states,
+                key_states,
+                cos,
+                sin,
+                block_end_index=replace_indices.max() + 1,
+            )
         else:
             query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
