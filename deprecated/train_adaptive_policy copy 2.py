@@ -154,7 +154,7 @@ class Tee(object):
         for f in self.files:
             f.flush()
 
-def setup_logging(log_dir="./train_log"):
+def setup_logging(log_dir="./log_train"):
     os.makedirs(log_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = os.path.join(log_dir, f"train_{timestamp}.log")

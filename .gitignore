@@ -10,11 +10,13 @@ dream/evals_results/
 log/
 wandb_log/
 checkpoints/
-train_log/
+log_train/
 wandb_logs/
-eval_log/
+log_eval/
 dream_original/
 Dyna_DLM/
 lm-evaluation-harness/
 lm_eval_yaml/
 parsed_results.txt
+train_log/
+eval_log/

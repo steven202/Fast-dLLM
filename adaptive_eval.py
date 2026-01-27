@@ -117,7 +117,7 @@ def build_eval_run_name(
     return f"{model_type}_{policy_part}_{pretrained_part}_{guidance_part}_{aligner_part}_L{gen_length}_S{steps}_B{block_len_max}"
 
 
-def setup_eval_logging(log_dir: str = "./eval_log", run_name: Optional[str] = None):
+def setup_eval_logging(log_dir: str = "./log_eval", run_name: Optional[str] = None):
     global _LOG_INITIALIZED, _LOG_FILE
     if _LOG_INITIALIZED:
         return _LOG_FILE
@@ -215,7 +215,7 @@ class AdaptiveBase(LM):
         batch_size: Optional[Union[int, str]] = 1,
         device: Optional[str] = "cuda",
         dtype: Optional[Union[str, torch.dtype]] = "bfloat16",
-        log_dir: str = "./eval_log",
+        log_dir: str = "./log_eval",
         enable_tee: bool = True,
         wandb: bool = False,
         wandb_project: str = "adaptive-dllm-eval",

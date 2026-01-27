@@ -22,7 +22,7 @@ def _sanitize_log_segment(value: str) -> str:
     return value
 
 
-def setup_logging(log_dir="./train_log", run_name: str | None = None):
+def setup_logging(log_dir="./log_train", run_name: str | None = None):
     os.makedirs(log_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_run_name = _sanitize_log_segment(run_name or "run")
