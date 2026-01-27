@@ -13,7 +13,7 @@ def load_prompts(dataset_names: List[str], max_samples: Optional[int] = None) ->
         dataset_data = []
         try:
             if d_name == "gsm8k":
-                ds = load_dataset("gsm8k", "main", split="train")
+                ds = load_dataset("openai/gsm8k", "main", split="train")
                 for item in ds:
                     dataset_data.append({
                         "prompt": item["question"], 
@@ -22,16 +22,27 @@ def load_prompts(dataset_names: List[str], max_samples: Optional[int] = None) ->
                     })
             
             elif d_name == "math":
-                ds = load_dataset("hendrycks/competition_math", split="train")
-                for item in ds:
-                    dataset_data.append({
-                        "prompt": item["problem"], 
-                        "answer": item["solution"], 
-                        "dataset": "math"
-                    })
+                # Align with lm_eval_yaml (hendrycks_math)
+                math_configs = [
+                    "algebra",
+                    "counting_and_probability",
+                    "geometry",
+                    "intermediate_algebra",
+                    "number_theory",
+                    "prealgebra",
+                    "precalculus",
+                ]
+                for cfg in math_configs:
+                    ds = load_dataset("EleutherAI/hendrycks_math", cfg, split="train")
+                    for item in ds:
+                        dataset_data.append({
+                            "prompt": item["problem"],
+                            "answer": item["solution"],
+                            "dataset": "math"
+                        })
             
             elif d_name == "humaneval":
-                ds = load_dataset("openai_humaneval", split="test")
+                ds = load_dataset("openai/openai_humaneval", split="test")
                 for item in ds:
                     dataset_data.append({
                         "prompt": item["prompt"], 
@@ -40,14 +51,14 @@ def load_prompts(dataset_names: List[str], max_samples: Optional[int] = None) ->
                     })
 
             elif d_name == "mbpp":
-                # MBPP often needs 'sanitized' split for cleaner code
-                ds = load_dataset("mbpp", "sanitized", split="train")
+                # Align with lm_eval_yaml (google-research-datasets/mbpp, full)
+                ds = load_dataset("google-research-datasets/mbpp", "full", split="train")
                 for item in ds:
                     # Construct a prompt that looks like code comments
                     prompt_text = f'"""\n{item["text"]}\n"""\n'
                     dataset_data.append({
-                        "prompt": prompt_text, 
-                        "answer": item["code"], 
+                        "prompt": prompt_text,
+                        "answer": item["code"],
                         "dataset": "mbpp"
                     })
             
