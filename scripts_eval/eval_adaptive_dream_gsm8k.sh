@@ -27,9 +27,10 @@ run_eval() {
 
 task=gsm8k
 length=256
-block_length=32
+block_len_min=8
+block_len_max=64
 num_fewshot=5
-steps=$((length / block_length))
+steps=128
 model="Dream-org/Dream-v0-Base-7B"
 policy_path='./checkpoints/policy_dream.pt'
 policy_name=$(basename "$policy_path" .pt)
@@ -39,28 +40,28 @@ policy_name=$(basename "$policy_path" .pt)
 echo "Running Baseline..."
 run_eval "dream_gsm8k_baseline" accelerate launch eval_adaptive.py --tasks ${task} --num_fewshot ${num_fewshot} \
 --model adaptive_dream \
---model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${length},block_len_max=${block_length},threshold=0.9,show_speed=True 
+--model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_min=${block_len_min},block_len_max=${block_len_max},threshold=0.9,show_speed=True 
 
 # 2. Prefix Cache
 echo "Running Prefix Cache..."
 run_eval "dream_gsm8k_prefix_cache" accelerate launch eval_adaptive.py --tasks ${task} --num_fewshot ${num_fewshot} \
 --model adaptive_dream \
---model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${length},block_len_max=${block_length},use_cache=True,show_speed=True 
+--model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_min=${block_len_min},block_len_max=${block_len_max},use_cache=True,show_speed=True 
 
 # 3. Parallel
 echo "Running Parallel..."
 run_eval "dream_gsm8k_parallel" accelerate launch eval_adaptive.py --tasks ${task} --num_fewshot ${num_fewshot} \
 --model adaptive_dream \
---model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_max=${block_length},threshold=0.9,show_speed=True 
+--model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_min=${block_len_min},block_len_max=${block_len_max},threshold=0.9,show_speed=True 
 
 # 4. Prefix Cache + Parallel
 echo "Running Prefix Cache + Parallel..."
 run_eval "dream_gsm8k_cache_parallel" accelerate launch eval_adaptive.py --tasks ${task} --num_fewshot ${num_fewshot} \
 --model adaptive_dream \
---model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_max=${block_length},use_cache=True,threshold=0.9,show_speed=True 
+--model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_min=${block_len_min},block_len_max=${block_len_max},use_cache=True,threshold=0.9,show_speed=True 
 
 # 5. Dual Cache + Parallel
 echo "Running Dual Cache + Parallel..."
 run_eval "dream_gsm8k_dual_cache_parallel" accelerate launch eval_adaptive.py --tasks ${task} --num_fewshot ${num_fewshot} \
 --model adaptive_dream \
---model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${length},block_len_max=${block_length},use_cache=True,dual_cache=True,threshold=0.9,show_speed=True
+--model_args pretrained=${model},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_min=${block_len_min},block_len_max=${block_len_max},use_cache=True,dual_cache=True,threshold=0.9,show_speed=True

@@ -27,9 +27,10 @@ run_eval() {
 
 task=gsm8k
 length=256
-block_length=32
+block_len_min=8
+block_len_max=64
 num_fewshot=5
-steps=$((length / block_length))
+steps=128
 factor=1.0
 model_path='GSAI-ML/LLaDA-8B-Instruct'
 policy_path='./checkpoints/policy_llada.pt'
@@ -85,4 +86,4 @@ policy_name=$(basename "$policy_path" .pt)
 echo "Running Dual Cache + Parallel Factor..."
 run_eval "llada_gsm8k_dual_cache_parallel_factor" accelerate launch eval_adaptive.py --tasks ${task} --num_fewshot ${num_fewshot} \
 --model adaptive_llada \
---model_args pretrained=${model_path},policy_path=${policy_path},gen_length=${length},steps=${length},block_len_max=${block_length},use_cache=True,dual_cache=True,factor=${factor},threshold=0.9,show_speed=True,wandb=True
+--model_args pretrained=${model_path},policy_path=${policy_path},gen_length=${length},steps=${steps},block_len_min=${block_len_min},block_len_max=${block_len_max},use_cache=True,dual_cache=True,factor=${factor},threshold=0.9,show_speed=True,wandb=True
