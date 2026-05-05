@@ -1,0 +1,2720 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `1`
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+2026-05-02:15:59:43 WARNING  [config.evaluate_config:281] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-05-02:15:59:45 INFO     [_cli.run:376] Selected Tasks: ['humaneval']
+2026-05-02:15:59:45 INFO     [evaluator:211] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-05-02:15:59:45 INFO     [evaluator:236] Initializing llada_dist model, with arguments: {'model_path': 'GSAI-ML/LLaDA-1.5', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 6/6 [00:00<00:00, 444.52it/s]
+Downloading builder script: 0.00B [00:00, ?B/s]Downloading builder script: 9.18kB [00:00, 33.0MB/s]
+Downloading extra modules: 0.00B [00:00, ?B/s]Downloading extra modules: 6.10kB [00:00, 37.1MB/s]
+Generating test split:   0%|          | 0/164 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 164/164 [00:00<00:00, 50168.90 examples/s]
+2026-05-02:15:59:50 INFO     [tasks:700] Selected tasks:
+2026-05-02:15:59:50 INFO     [tasks:691] Task: humaneval (humaneval/humaneval.yaml)
+2026-05-02:15:59:50 INFO     [evaluator:314] humaneval: Using gen_kwargs: {'until': ['\nclass', '\ndef', '\n#', '\nif', '\nprint'], 'max_gen_toks': 1024, 'do_sample': False}
+2026-05-02:15:59:50 INFO     [evaluator:329] num_fewshot has been set to 0 for humaneval in its config. Manual configuration will be ignored.
+2026-05-02:15:59:50 INFO     [api.task:311] Building contexts for humaneval on rank 0...
+  0%|          | 0/164 [00:00<?, ?it/s]100%|██████████| 164/164 [00:00<00:00, 3098.24it/s]
+2026-05-02:15:59:50 INFO     [evaluator:584] Running generate_until requests
+Batching...:   0%|          | 0/164 [00:00<?, ?it/s]Batching...: 100%|██████████| 164/164 [00:00<00:00, 2762513.48it/s]
+Generating...:   0%|          | 0/164 [00:00<?, ?it/s]====================
+answer:      sorted_numbers = sorted(numbers)
+    for i in range(len(sorted_numbers)):
+        if abs(sorted_numbers[i] - sorted_numbers[i + 1]) < threshold:
+            return True
+    return False
+
+
+nfe:  38
+avg nfe:  38.0
+====================
+
+Generating...:   1%|          | 1/164 [00:02<06:57,  2.56s/it]====================
+answer:      result = []
+    stack = []
+    current = []
+
+    for char in paren_string:
+        if char == '(':
+            stack.append(current)
+            current = []
+        elif char == ')':
+            if stack:
+                result.append(''.join(stack.pop()))
+            else:
+                current.append(char)
+        else:
+            current.append(char)
+
+    while stack:
+        result.append(''.join(stack.pop()))
+
+    return result
+
+
+nfe:  80
+avg nfe:  59.0
+====================
+
+Generating...:   1%|          | 2/164 [00:04<06:35,  2.44s/it]====================
+answer:      if number < 0:
+        raise ValueError("The number must be positive")
+    integer_part = int(number)
+    decimal_part = number - integer_part
+    return decimal_part
+
+nfe:  100
+avg nfe:  72.66666666666667
+====================
+
+Generating...:   2%|▏         | 3/164 [00:07<07:02,  2.62s/it]====================
+answer:      balance = 0
+    for operation in operations:
+        balance += operation
+        if balance < 0:
+            return True
+    return False
+
+
+nfe:  94
+avg nfe:  78.0
+====================
+
+Generating...:   2%|▏         | 4/164 [00:10<07:04,  2.65s/it]====================
+answer:      if not numbers:
+        raise ValueError("The list of numbers must not be empty.")
+
+    mean = sum(numbers) / len(numbers)
+    mean_deviation = sum(abs(x - mean) for x in numbers) / len(numbers)
+    return mean_deviation
+
+
+nfe:  145
+avg nfe:  91.4
+====================
+
+Generating...:   3%|▎         | 5/164 [00:14<08:31,  3.22s/it]====================
+answer:      if not numbers:
+        return []
+
+    result = []
+    for i in range(len(numbers) - 1):
+        result.append(numbers[i])
+        result.append(delimeter)
+        result.append(numbers[i + 1])
+    return result
+
+
+nfe:  99
+avg nfe:  92.66666666666667
+====================
+
+Generating...:   4%|▎         | 6/164 [00:17<08:13,  3.12s/it]====================
+answer:      groups = paren_string.split()
+    result = []
+    for group in groups:
+        stack = []
+        level = 0
+        for char in group:
+            if char == '(':
+                stack.append(char)
+            elif char == ')':
+                if stack:
+                    level += 1
+                    stack.pop()
+        result.append(level)
+    return result
+
+
+nfe:  154
+avg nfe:  101.42857142857143
+====================
+
+Generating...:   4%|▍         | 7/164 [00:22<09:15,  3.54s/it]====================
+answer:      return [s for s in strings if substring in s]
+
+
+nfe:  23
+avg nfe:  91.625
+====================
+
+Generating...:   5%|▍         | 8/164 [00:22<06:49,  2.63s/it]====================
+answer:      if not numbers:
+        return (0, 1)
+    total_sum = sum(numbers)
+    total_product = 1
+    for num in numbers:
+        total_product *= num
+    return (total_sum, total_product)
+
+
+nfe:  100
+avg nfe:  92.55555555555556
+====================
+
+Generating...:   5%|▌         | 9/164 [00:25<06:57,  2.70s/it]====================
+answer:      if not numbers:
+        return []
+
+    result = []
+    current_max = numbers[0]
+    for num in numbers[1:]:
+        if num > current_max:
+            current_max = num
+        result.append(current_max)
+    return result
+
+
+nfe:  46
+avg nfe:  87.9
+====================
+
+Generating...:   6%|▌         | 10/164 [00:26<05:49,  2.27s/it]====================
+answer:      if not string:
+        return string
+
+    # Find the longest palindromic suffix
+    n = len(string)
+    i = 0
+    while i < n and is_palindrome(string[i:]):
+        i += 1
+
+    # Find the longest prefix that comes before the palindromic suffix
+    j = i
+    while j >= 0 and is_palindrome(string[:j]):
+        j -= 1
+
+    # Reverse the prefix and append it to the string
+    return string[:j][::-1] + string[i:]
+
+
+nfe:  141
+avg nfe:  92.72727272727273
+====================
+
+Generating...:   7%|▋         | 11/164 [00:30<07:10,  2.81s/it]====================
+answer:      # Determine the length of the two strings
+    max_len = max(len(a), len(b))
+    result = []
+    for i in range(max_len):
+        # XOR corresponding bits
+        result.append(a[i] if i < len(a) else '0' ^ b[i] if i < len(b) else '0')
+    return ''.join(result)
+
+
+nfe:  155
+avg nfe:  97.91666666666667
+====================
+
+Generating...:   7%|▋         | 12/164 [00:35<08:19,  3.29s/it]====================
+answer:      if not strings:
+        return None
+
+    longest = strings[0]
+    for s in strings[1:]:
+        if len(s) > len(longest):
+            longest = s
+        elif len(s) == len(longest):
+            return longest
+    return longest
+
+
+nfe:  121
+avg nfe:  99.6923076923077
+====================
+
+Generating...:   8%|▊         | 13/164 [00:38<08:22,  3.33s/it]====================
+answer:      if b == 0:
+        return a
+    else:
+        return greatest_common_divisor(b, a % b)
+
+nfe:  84
+avg nfe:  98.57142857142857
+====================
+
+Generating...:   9%|▊         | 14/164 [00:41<07:36,  3.04s/it]====================
+answer:      n = len(string)
+    result = []
+    for i in range(n):
+        result.append(string[:i+1])
+    return result
+
+
+nfe:  41
+avg nfe:  94.73333333333333
+====================
+
+Generating...:   9%|▉         | 15/164 [00:42<06:08,  2.47s/it]====================
+answer:      if n == 0:
+        return '0'
+    return ' '.join(map(str, range(n + 1)))
+
+nfe:  114
+avg nfe:  95.9375
+====================
+
+Generating...:  10%|▉         | 16/164 [00:45<06:39,  2.70s/it]====================
+answer:      # Convert the string to lowercase to handle case insensitivity
+    string = string.lower()
+    
+    # Use a set to store distinct characters
+    distinct_characters = set()
+    
+    # Iterate over each character in the string
+    for char in string:
+        distinct_characters.add(char)
+    
+    # Return the number of distinct characters
+    return len(distinct_characters)
+
+nfe:  118
+avg nfe:  97.23529411764706
+====================
+
+Generating...:  10%|█         | 17/164 [00:48<07:05,  2.89s/it]====================
+answer:      result = []
+    for note in music_string:
+        if note == 'o':
+            result.append(4)
+        elif note == 'o|':
+            result.append(2)
+        elif note == '.|':
+            result.append(1)
+    return result
+
+
+nfe:  95
+avg nfe:  97.11111111111111
+====================
+
+Generating...:  11%|█         | 18/164 [00:51<06:56,  2.85s/it]====================
+answer:      count = 0
+    start = 0
+    while start < len(string):
+        start = string.find(substring, start)
+        if start == -1:
+            break
+        count += 1
+        start += len(substring)
+    return count
+
+nfe:  164
+avg nfe:  100.63157894736842
+====================
+
+Generating...:  12%|█▏        | 19/164 [00:56<08:09,  3.38s/it]====================
+answer:      # Split the input string into a list of words
+    words = numbers.split()
+    
+    # Convert each word to an integer
+    num_list = [int(word) for word in words]
+    
+    # Sort the list of integers
+    num_list.sort()
+    
+    # Convert the sorted list back to a string
+    sorted_numbers = ' '.join(map(str, num_list))
+    
+    return sorted_numbers
+
+
+nfe:  144
+avg nfe:  102.8
+====================
+
+Generating...:  12%|█▏        | 20/164 [01:00<08:34,  3.57s/it]====================
+answer:      if len(numbers) < 2:
+        raise ValueError("The list must contain at least two elements.")
+
+    closest1 = numbers[0]
+    closest2 = numbers[0]
+
+    for num in numbers[1:]:
+        if abs(num - closest1) < abs(closest1 - closest2):
+            closest2 = closest1
+            closest1 = num
+        elif abs(num - closest2) < abs(closest2 - closest1):
+            closest2 = num
+
+    return closest1, closest2
+
+
+nfe:  72
+avg nfe:  101.33333333333333
+====================
+
+Generating...:  13%|█▎        | 21/164 [01:02<07:27,  3.13s/it]====================
+answer:      if len(numbers) < 2:
+        raise ValueError("The list must contain at least two elements.")
+
+    min_val = min(numbers)
+    max_val = max(numbers)
+
+    rescaled_numbers = [(num - min_val) / (max_val - min_val) for num in numbers]
+    return rescaled_numbers
+
+
+nfe:  107
+avg nfe:  101.5909090909091
+====================
+
+Generating...:  13%|█▎        | 22/164 [01:05<07:21,  3.11s/it]====================
+answer:      return [value for value in values if isinstance(value, int)]
+
+
+nfe:  94
+avg nfe:  101.26086956521739
+====================
+
+Generating...:  14%|█▍        | 23/164 [01:07<06:58,  2.97s/it]====================
+answer:      return len(string)
+
+nfe:  77
+avg nfe:  100.25
+====================
+
+Generating...:  15%|█▍        | 24/164 [01:10<06:21,  2.72s/it]====================
+answer:      if n == 1:
+        return 1
+    if n % 2 == 0:
+        return 2
+    for i in range(3, int(n**0.5) + 1, 2):
+        if n % i == 0:
+            return i
+    return n
+
+nfe:  123
+avg nfe:  101.16
+====================
+
+Generating...:  15%|█▌        | 25/164 [01:13<06:48,  2.94s/it]====================
+answer:      if n <= 1:
+        return []
+
+    factors = []
+    while n > 1:
+        if n % 2 == 0:
+            factors.append(2)
+            n = n // 2
+        while n % 2 == 0:
+            factors.append(2)
+            n = n // 2
+        if n > 2:
+            factors.append(n)
+
+    return factors
+
+
+nfe:  72
+avg nfe:  100.03846153846153
+====================
+
+Generating...:  16%|█▌        | 26/164 [01:15<06:10,  2.69s/it]====================
+answer:      seen = {}
+    result = []
+    for num in numbers:
+        if num not in seen:
+            seen.add(num)
+            result.append(num)
+    return result
+
+
+nfe:  93
+avg nfe:  99.77777777777777
+====================
+
+Generating...:  16%|█▋        | 27/164 [01:18<06:05,  2.67s/it]====================
+answer:      result = ''
+    for char in string:
+        if char.islower():
+            result += char.upper()
+        elif char.isupper():
+            result += char.lower()
+        else:
+            result += char
+    return result
+
+nfe:  145
+avg nfe:  101.39285714285714
+====================
+
+Generating...:  17%|█▋        | 28/164 [01:22<06:59,  3.08s/it]====================
+answer:      return ''.join(strings)
+
+
+nfe:  66
+avg nfe:  100.17241379310344
+====================
+
+Generating...:  18%|█▊        | 29/164 [01:24<06:06,  2.71s/it]====================
+answer:      return [s for s in strings if s.startswith(prefix)]
+
+
+nfe:  21
+avg nfe:  97.53333333333333
+====================
+
+Generating...:  18%|█▊        | 30/164 [01:24<04:38,  2.08s/it]====================
+answer:      return [x for x in l if x > 0]
+
+nfe:  74
+avg nfe:  96.7741935483871
+====================
+
+Generating...:  19%|█▉        | 31/164 [01:26<04:37,  2.08s/it]====================
+answer:      if n <= 1:
+        return False
+    if n <= 3:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+        i += 6
+    return True
+
+nfe:  79
+avg nfe:  96.21875
+====================
+
+Generating...:  20%|█▉        | 32/164 [01:29<04:40,  2.12s/it]====================
+answer:      if len(xs) % 2 != 0:
+        raise ValueError("xs must have an even number of coefficients")
+
+    n = len(xs) // 2
+    a = max(xs)
+    b = min(xs)
+
+    if a == 0:
+        raise ValueError("xs must have a non-zero coefficient")
+
+    if b == 0:
+        return -1 / a
+
+    alpha = 1 / (2 * a)
+    beta = -1 / (2 * a)
+
+    if b < 0:
+        alpha = -alpha
+        beta = -beta
+
+    if b > 0:
+        alpha = -alpha
+        beta = -beta
+
+    if b < 0:
+        alpha = -alpha
+        beta = -beta
+
+    if b > 0:
+        alpha = -alpha
+        beta = -beta
+
+    if b < 0:
+        alpha = -alpha
+        beta = -beta
+
+    return alpha
+nfe:  187
+avg nfe:  98.96969696969697
+====================
+
+Generating...:  20%|██        | 33/164 [01:34<06:45,  3.10s/it]====================
+answer:      result = []
+    for i in range(len(l)):
+        if i % 3 != 0:
+            result.append(l[i])
+        else:
+            result.append(sorted(l[i:i+3]))
+    return result
+
+nfe:  42
+avg nfe:  97.29411764705883
+====================
+
+Generating...:  21%|██        | 34/164 [01:35<05:30,  2.55s/it]====================
+answer:      seen = set()
+    result = []
+    for item in l:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    result.sort()
+    return result
+
+nfe:  106
+avg nfe:  97.54285714285714
+====================
+
+Generating...:  21%|██▏       | 35/164 [01:38<05:45,  2.68s/it]====================
+answer:      if len(l) == 0:
+        raise ValueError("The list is empty")
+    return max(l)
+
+nfe:  151
+avg nfe:  99.02777777777777
+====================
+
+Generating...:  22%|██▏       | 36/164 [01:42<06:43,  3.15s/it]====================
+answer:      count = 0
+    for i in range(1, n):
+        if i % 11 == 0 or i % 13 == 0:
+            if '7' in str(i):
+                count += 1
+    return count
+
+nfe:  113
+avg nfe:  99.4054054054054
+====================
+
+Generating...:  23%|██▎       | 37/164 [01:46<06:41,  3.16s/it]====================
+answer:      result = []
+    for i in range(len(l)):
+        if i % 2 == 0:
+            result.append(l[i])
+        else:
+            result.append(l[i])
+    return result
+
+nfe:  33
+avg nfe:  97.65789473684211
+====================
+
+Generating...:  23%|██▎       | 38/164 [01:47<05:16,  2.51s/it]====================
+answer:      # split string to groups. Each of length 3.
+    groups = [s[(3 * i):min((3 * i + 3), len(s))] for i in range((len(s) + 2) // 3)]
+    # reverse elements in each group. Unless group has fewer elements than 3.
+    groups = [(group[2] + group[0]) if len(group) == 3 else group for group in groups]
+    return "".join(groups)
+
+
+nfe:  111
+avg nfe:  98.0
+====================
+
+Generating...:  24%|██▍       | 39/164 [01:50<05:39,  2.72s/it]====================
+answer:      def is_prime(num: int) -> bool:
+        if num <= 1:
+            return False
+        if num == 2:
+            return True
+        if num % 2 == 0:
+            return False
+        i = 3
+        while i * i <= num:
+            if num % i == 0:
+                return False
+            i += 2
+        return True
+
+    while True:
+        a, b = 0, 1
+        while True:
+            if is_prime(a):
+                return a
+            a, b = b, a + b
+
+nfe:  116
+avg nfe:  98.45
+====================
+
+Generating...:  24%|██▍       | 40/164 [01:53<05:57,  2.88s/it]====================
+answer:      # Sort the list to avoid duplicates
+    l.sort()
+    
+    # Iterate through the list
+    for i in range(len(l) - 2):
+        for j in range(i + 1, len(l)):
+            if l[i] + l[j] + l[j + 1] == 0:
+                return True
+    return False
+
+nfe:  108
+avg nfe:  98.6829268292683
+====================
+
+Generating...:  25%|██▌       | 41/164 [01:56<06:02,  2.95s/it]====================
+answer:      # If the number of cars is zero, there are no collisions
+    if n == 0:
+        return 0
+
+    # Initialize the number of collisions
+    collisions = 0
+
+    # Iterate over each car
+    for i in range(n):
+        # For each car, iterate over every other car
+        for j in range(n):
+            # If the current car is not the same as the car being checked
+            if i != j:
+                # Increment the number of collisions
+                collisions += 1
+
+    return collisions
+
+nfe:  170
+avg nfe:  100.38095238095238
+====================
+
+Generating...:  26%|██▌       | 42/164 [02:01<07:09,  3.52s/it]====================
+answer:      return [x + 1 for x in l]
+
+nfe:  53
+avg nfe:  99.27906976744185
+====================
+
+Generating...:  26%|██▌       | 43/164 [02:03<05:52,  2.91s/it]====================
+answer:      seen = set()
+    for num in l:
+        seen.add(num)
+        if -num in seen:
+            return True
+    return False
+```
+
+This function `pairs_sum_to_zero` uses a set to keep track of the numbers we have seen so far. It iterates through the list, adds each number to the set, and checks if the negative of that number is already in the set. If it is, it means we have found a pair that sums to zero, so we return `True`. If we finish iterating through the list without finding such a pair, we return `False`.
+
+This function has a time complexity of O(n), where n is the number of elements in the list, because it requires a single pass through the list. The space complexity is also O(n) in the worst case, because we may need to store all elements in the set.
+
+Note: The function assumes that the input list contains only distinct integers. If the input list can contain duplicate integers, the function will not work correctly. If you want to handle duplicate integers, you can modify the function to use a set of tuples instead of a set, but this will increase the complexity of the function.
+nfe:  167
+avg nfe:  100.81818181818181
+====================
+
+Generating...:  27%|██▋       | 44/164 [02:07<06:56,  3.47s/it]====================
+answer:      if x == 0:
+        return '0'
+    if x < 0:
+        x = -x
+    result = []
+    while x > 0:
+        remainder = x % base
+        result.append(str(remainder))
+        x = x // base
+    return ''.join(reversed(result))
+
+nfe:  158
+avg nfe:  102.08888888888889
+====================
+
+Generating...:  27%|██▋       | 45/164 [02:12<07:28,  3.77s/it]====================
+answer:      return 0.5 * a * h
+
+nfe:  108
+avg nfe:  102.21739130434783
+====================
+
+Generating...:  28%|██▊       | 46/164 [02:15<06:58,  3.55s/it]====================
+answer:      if n == 0:
+        return 0
+    elif n == 1:
+        return 0
+    elif n == 2:
+        return 2
+    elif n == 3:
+        return 0
+    elif n == 4:
+        return 4
+    elif n == 5:
+        return 4
+    elif n == 6:
+        return 8
+    elif n == 7:
+        return 14
+    elif n == 8:
+        return 24
+    elif n == 9:
+        return 44
+    elif n == 10:
+        return 88
+    elif n == 11:
+        return 176
+    elif n == 12:
+        return 352
+    elif n == 13:
+        return 712
+    elif n == 14:
+        return 1368
+    elif n == 15:
+        return 2584
+    else:
+        raise ValueError("n is out of range, should be from 0 to 15")
+nfe:  91
+avg nfe:  101.97872340425532
+====================
+
+Generating...:  29%|██▊       | 47/164 [02:17<06:23,  3.28s/it]====================
+answer:      n = len(l)
+    if n % 2 == 1:
+        return l[n // 2]
+    else:
+        return (l[n // 2 - 1] + l[n // 2]) / 2
+
+nfe:  131
+avg nfe:  102.58333333333333
+====================
+
+Generating...:  29%|██▉       | 48/164 [02:21<06:34,  3.40s/it]====================
+answer:      # Remove non-alphanumeric characters and convert to lowercase
+    text = ''.join(char.lower() for char in text if char.isalnum())
+    # Check if the text is equal to its reverse
+    return text == text[::-1]
+
+nfe:  137
+avg nfe:  103.28571428571429
+====================
+
+Generating...:  30%|██▉       | 49/164 [02:25<06:52,  3.58s/it]====================
+answer:      result = 1
+    while n > 0:
+        result = (result * 2) % p
+        n -= 1
+    return result
+
+nfe:  33
+avg nfe:  101.88
+====================
+
+Generating...:  30%|███       | 50/164 [02:26<05:19,  2.80s/it]====================
+answer:      return "".join([chr(((ord(ch) - 5 - ord("a")) % 26) + ord("a")) for ch in s])
+
+
+nfe:  123
+avg nfe:  102.29411764705883
+====================
+
+Generating...:  31%|███       | 51/164 [02:30<05:41,  3.02s/it]====================
+answer:      vowels = 'aeiouAEIOU'
+    result = ''.join([char for char in text if char not in vowels])
+    return result
+
+nfe:  93
+avg nfe:  102.11538461538461
+====================
+
+Generating...:  32%|███▏      | 52/164 [02:32<05:27,  2.92s/it]====================
+answer:      return all(x < t for x in l)
+
+nfe:  67
+avg nfe:  101.45283018867924
+====================
+
+Generating...:  32%|███▏      | 53/164 [02:34<04:50,  2.61s/it]====================
+answer:      return x + y
+
+nfe:  134
+avg nfe:  102.05555555555556
+====================
+
+Generating...:  33%|███▎      | 54/164 [02:38<05:24,  2.95s/it]====================
+answer:      if len(s0) != len(s1):
+        return False
+    for i in range(len(s0)):
+        if s0[i] != s1[i]:
+            return False
+    return True
+
+
+nfe:  96
+avg nfe:  101.94545454545455
+====================
+
+Generating...:  34%|███▎      | 55/164 [02:41<05:15,  2.90s/it]====================
+answer:      if n <= 0:
+        return 0
+    elif n == 1:
+        return 1
+    else:
+        return fib(n-1) + fib(n-2)
+
+nfe:  64
+avg nfe:  101.26785714285714
+====================
+
+Generating...:  34%|███▍      | 56/164 [02:43<04:36,  2.56s/it]====================
+answer:      stack = []
+    for char in brackets:
+        if char == "<":
+            stack.append(char)
+        elif char == ">":
+            if not stack:
+                return False
+            stack.pop()
+    return not stack
+
+nfe:  158
+avg nfe:  102.26315789473684
+====================
+
+Generating...:  35%|███▍      | 57/164 [02:47<05:34,  3.12s/it]====================
+answer:      if len(l) < 2:
+        return True
+    for i in range(1, len(l)):
+        if l[i] < l[i - 1]:
+            return False
+        if l[i] > l[i - 1]:
+            return False
+    return True
+
+nfe:  132
+avg nfe:  102.77586206896552
+====================
+
+Generating...:  35%|███▌      | 58/164 [02:51<05:49,  3.30s/it]====================
+answer:      # Convert lists to sets to remove duplicates
+    set1 = set(l1)
+    set2 = set(l2)
+    
+    # Find the intersection of the sets
+    common_elements = set1.intersection(set2)
+    
+    # Convert the set of common elements to a sorted list
+    return sorted(common_elements)
+
+nfe:  122
+avg nfe:  103.10169491525424
+====================
+
+Generating...:  36%|███▌      | 59/164 [02:54<05:50,  3.34s/it]====================
+answer:      if n <= 1:
+        return None
+
+    # Check for number of 2s that divide n
+    while n % 2 == 0:
+        n //= 2
+
+    # n must be odd at this point, so we can skip one element
+    # i.e., i = 2 + 2, i.e., i = 3
+    for i in range(3, int(n**0.5) + 1, 2):
+        while n % i == 0:
+            n //= i
+
+    # This condition is to check if n is a prime number
+    if n > 2:
+        return n
+
+    return None
+
+nfe:  138
+avg nfe:  103.68333333333334
+====================
+
+Generating...:  37%|███▋      | 60/164 [02:58<06:03,  3.49s/it]====================
+answer:      total = 0
+    for i in range(1, n + 1):
+        total += i
+    return total
+
+nfe:  57
+avg nfe:  102.91803278688525
+====================
+
+Generating...:  37%|███▋      | 61/164 [03:00<05:01,  2.93s/it]====================
+answer:      stack = []
+    for char in brackets:
+        if char == '(':
+            stack.append(char)
+        elif char == ')':
+            if not stack:
+                return False
+            stack.pop()
+    return not stack
+
+
+nfe:  149
+avg nfe:  103.66129032258064
+====================
+
+Generating...:  38%|███▊      | 62/164 [03:04<05:36,  3.30s/it]====================
+answer:      result = []
+    for i in range(len(xs)):
+        result.append(xs[i] * (i + 1))
+    return result
+
+nfe:  103
+avg nfe:  103.65079365079364
+====================
+
+Generating...:  38%|███▊      | 63/164 [03:07<05:21,  3.18s/it]====================
+answer:      if n == 0:
+        return 0
+    elif n == 1:
+        return 0
+    elif n == 2:
+        return 1
+    else:
+        return fibfib(n-1) + fibfib(n-2) + fibfib(n-3)
+
+nfe:  105
+avg nfe:  103.671875
+====================
+
+Generating...:  39%|███▉      | 64/164 [03:10<05:13,  3.13s/it]====================
+answer:      vowels = "aeiou"
+    count = 0
+    for char in s:
+        if char in vowels:
+            count += 1
+    return count
+
+nfe:  94
+avg nfe:  103.52307692307693
+====================
+
+Generating...:  40%|███▉      | 65/164 [03:12<04:58,  3.01s/it]====================
+answer:      s = str(x)
+    n = len(s)
+    if shift > n:
+        shift -= n
+    result = s[-shift:] + s[:-shift]
+    return result
+
+nfe:  121
+avg nfe:  103.78787878787878
+====================
+
+Generating...:  40%|████      | 66/164 [03:16<05:07,  3.14s/it]====================
+answer:      total_sum = 0
+    for char in s:
+        if char.isupper():
+            total_sum += ord(char)
+    return total_sum
+
+nfe:  61
+avg nfe:  103.14925373134328
+====================
+
+Generating...:  41%|████      | 67/164 [03:18<04:24,  2.73s/it]====================
+answer:      # Extract the number of apples and oranges from the string
+    parts = s.split()
+    apples = int(parts[0])
+    oranges = int(parts[2])
+    
+    # Calculate the number of mango fruits
+    mango_fruits = n - apples - oranges
+    
+    return mango_fruits
+
+nfe:  92
+avg nfe:  102.98529411764706
+====================
+
+Generating...:  41%|████▏     | 68/164 [03:20<04:20,  2.72s/it]====================
+answer:      if not arr:
+        return []
+
+    smallest_even_value = float('inf')
+    smallest_even_index = -1
+    for i, num in enumerate(arr):
+        if num % 2 == 0:
+            if num < smallest_even_value:
+                smallest_even_value = num
+                smallest_even_index = i
+    return [smallest_even_value, smallest_even_index]
+
+nfe:  88
+avg nfe:  102.76811594202898
+====================
+
+Generating...:  42%|████▏     | 69/164 [03:23<04:14,  2.68s/it]====================
+answer:      from collections import Counter
+    from collections import defaultdict
+
+    # Count the frequency of each integer in the list
+    freq = Counter(lst)
+
+    # Find the greatest integer with a frequency greater than or equal to its value
+    greatest_integer = -1
+    for num in freq:
+        if num > 0 and freq[num] >= num:
+            if num > greatest_integer:
+                greatest_integer = num
+
+    return greatest_integer
+
+nfe:  88
+avg nfe:  102.55714285714286
+====================
+
+Generating...:  43%|████▎     | 70/164 [03:25<04:08,  2.64s/it]====================
+answer:      if not lst:
+        return []
+
+    min_val = min(lst)
+    max_val = max(lst)
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+    min_val = min(lst.remove(min_val))
+    max_val = max(lst.remove(max_val))
+
+    return [min_val] + lst
+nfe:  85
+avg nfe:  102.30985915492958
+====================
+
+Generating...:  43%|████▎     | 71/164 [03:28<03:59,  2.58s/it]====================
+answer:      # Check if the given sides form a valid triangle
+    if (a + b <= c) or (b + c <= a) or (c + a <= b):
+        return -1
+
+    # Calculate the semi-perimeter
+    s = (a + b + c) / 2
+
+    # Use Heron's formula to calculate the area
+    area = math.sqrt(s * (s - a) * (s - b) * (s - c))
+
+    # Return the area rounded to 2 decimal points
+    return round(area, 2)
+
+nfe:  103
+avg nfe:  102.31944444444444
+====================
+
+Generating...:  44%|████▍     | 72/164 [03:31<04:06,  2.68s/it]====================
+answer:      # Check if the list is a palindrome
+    if q != q[::-1]:
+        return False
+
+    # Check if the sum of the elements is less than or equal to the maximum possible weight
+    return sum(q) <= w
+
+nfe:  93
+avg nfe:  102.1917808219178
+====================
+
+Generating...:  45%|████▍     | 73/164 [03:34<04:04,  2.69s/it]====================
+answer:      n = len(arr)
+    changes = 0
+    for i in range(n):
+        if arr[i] != arr[n-1-i]:
+            changes += 1
+    return changes
+
+nfe:  101
+avg nfe:  102.17567567567568
+====================
+
+Generating...:  45%|████▌     | 74/164 [03:36<04:07,  2.75s/it]====================
+answer:      if len(lst1) < len(lst2):
+        return lst1
+    elif len(lst1) > len(lst2):
+        return lst2
+    else:
+        sum1 = sum(len(s) for s in lst1)
+        sum2 = sum(len(s) for s in lst2)
+        if sum1 < sum2:
+            return lst1
+        elif sum1 > sum2:
+            return lst2
+        else:
+            return lst1
+
+nfe:  73
+avg nfe:  101.78666666666666
+====================
+
+Generating...:  46%|████▌     | 75/164 [03:39<03:48,  2.57s/it]====================
+answer:      def is_prime(n):
+        """Helper function to check if a number is prime."""
+        if n <= 1:
+            return False
+        if n <= 3:
+            return True
+        if n % 2 == 0 or n % 3 == 0:
+            return False
+        i = 5
+        while i * i <= n:
+            if n % i == 0 or n % (i + 2) == 0:
+                return False
+            i += 6
+        return True
+
+    # Check if a is divisible by 2 or 3
+    if a % 2 == 0 or a % 3 == 0:
+        return False
+
+    # Check if a is divisible by 5
+    if a % 5 == 0:
+        return False
+
+    # Check if a is divisible by 7
+    if a % 7 == 0:
+        return False
+
+    # Check if a is divisible by 11
+    if a % 11 == 0:
+        return False
+
+    # If all conditions are met, return True
+    return True
+nfe:  91
+avg nfe:  101.64473684210526
+====================
+
+Generating...:  46%|████▋     | 76/164 [03:41<03:45,  2.57s/it]====================
+answer:      return n ** (1 / n) == x
+
+nfe:  103
+avg nfe:  101.66233766233766
+====================
+
+Generating...:  47%|████▋     | 77/164 [03:44<03:53,  2.68s/it]====================
+answer:      b = int(a ** (1/3))
+    return b ** 3 == a
+
+nfe:  113
+avg nfe:  101.8076923076923
+====================
+
+Generating...:  48%|████▊     | 78/164 [03:47<04:03,  2.83s/it]====================
+answer:      # Define the set of prime hexadecimal digits
+    prime_digits = {2, 3, 5, 7, 11, 13}
+    
+    # Initialize a counter for prime digits
+    count = 0
+    
+    # Iterate over each character in the input string
+    for char in num:
+        # Convert the character to its decimal equivalent
+        decimal_value = ord(char)
+        
+        # Check if the decimal value is in the set of prime digits
+        if decimal_value in prime_digits:
+            # Increment the counter if it is a prime digit
+            count += 1
+    
+    # Return the final count of prime digits
+    return count
+
+nfe:  94
+avg nfe:  101.70886075949367
+====================
+
+Generating...:  48%|████▊     | 79/164 [03:50<03:58,  2.81s/it]====================
+answer:      if decimal == 0:
+        return "db0db"
+
+    binary_str = ""
+    while decimal > 0:
+        remainder = decimal % 2
+        binary_str = str(remainder) + binary_str
+        decimal = decimal // 2
+
+    return "db" + binary_str + "db"
+
+nfe:  103
+avg nfe:  101.725
+====================
+
+Generating...:  49%|████▉     | 80/164 [03:53<03:59,  2.85s/it]====================
+answer:      if len(s) < 3:
+        return False
+    
+    for i in range(len(s) - 2):
+        if s[i] == s[i + 1] == s[i + 2]:
+            return False
+    
+    return True
+
+nfe:  82
+avg nfe:  101.48148148148148
+====================
+
+Generating...:  49%|████▉     | 81/164 [03:55<03:43,  2.69s/it]====================
+answer:      letter_grades = []
+    for grade in grades:
+        if grade >= 4.0:
+            letter_grades.append('A+')
+        elif grade >= 3.7:
+            letter_grades.append('A')
+        elif grade >= 3.3:
+            letter_grades.append('A-')
+        elif grade >= 3.0:
+            letter_grades.append('B+')
+        elif grade >= 2.7:
+            letter_grades.append('B')
+        elif grade >= 2.3:
+            letter_grades.append('B-')
+        elif grade >= 2.0:
+            letter_grades.append('C+')
+        elif grade >= 1.7:
+            letter_grades.append('C')
+        elif grade >= 1.3:
+            letter_grades.append('C-')
+        elif grade >= 1.0:
+            letter_grades.append('D+')
+        elif grade >= 0.7:
+            letter_grades.append('D')
+        else:
+            letter_grades.append('E')
+    return letter_grades
+nfe:  32
+avg nfe:  100.63414634146342
+====================
+
+Generating...:  50%|█████     | 82/164 [03:56<02:59,  2.19s/it]====================
+answer:      def is_prime(n):
+        """Check if a number is prime."""
+        if n <= 1:
+            return False
+        if n <= 3:
+            return True
+        if n % 2 == 0 or n % 3 == 0:
+            return False
+        i = 5
+        while i * i <= n:
+            if n % i == 0 or n % (i + 2) == 0:
+                return False
+            i += 6
+        return True
+
+    length = len(string)
+    return is_prime(length)
+
+nfe:  77
+avg nfe:  100.34939759036145
+====================
+
+Generating...:  51%|█████     | 83/164 [03:58<02:56,  2.18s/it]====================
+answer:      # Number of n-digit numbers
+    total = 10**n
+
+    # Number of n-digit numbers that start with 1
+    start_count = 10**(n-1)
+
+    # Number of n-digit numbers that end with 1
+    end_count = 10**(n-1)
+
+    # Total number of n-digit numbers that start or end with 1
+    result = start_count + end_count
+
+    return result
+
+nfe:  129
+avg nfe:  100.69047619047619
+====================
+
+Generating...:  51%|█████     | 84/164 [04:02<03:28,  2.60s/it]====================
+answer:      if N == 0:
+        return "0"
+    
+    # Convert N to binary
+    binary_str = bin(N)
+    # Calculate the sum of binary digits
+    binary_sum = sum(int(digit) for digit in binary_str)
+    
+    # Convert the sum to binary string
+    return bin(binary_sum)
+
+nfe:  124
+avg nfe:  100.96470588235294
+====================
+
+Generating...:  52%|█████▏    | 85/164 [04:06<03:47,  2.88s/it]====================
+answer:      result = 0
+    for i in range(len(lst)):
+        if i % 2 != 0 and lst[i] % 2 == 0:
+            result += lst[i]
+    return result
+
+nfe:  110
+avg nfe:  101.06976744186046
+====================
+
+Generating...:  52%|█████▏    | 86/164 [04:09<03:48,  2.93s/it]====================
+answer:      words = s.split()
+    sorted_words = []
+    for word in words:
+        sorted_word = ''.join(sorted(word))
+        sorted_words.append(sorted_word)
+    return ' '.join(sorted_words)
+
+nfe:  110
+avg nfe:  101.17241379310344
+====================
+
+Generating...:  53%|█████▎    | 87/164 [04:12<03:50,  3.00s/it]====================
+answer:      result = []
+    for row in lst:
+        for item in row:
+            if item == x:
+                result.append((row.index(item), row.index(item)))
+    result.sort(key=lambda t: (t[0], -t[1]))
+    return result
+
+nfe:  95
+avg nfe:  101.10227272727273
+====================
+
+Generating...:  54%|█████▎    | 88/164 [04:15<03:43,  2.94s/it]====================
+answer:      if len(array) == 0:
+        return array
+
+    first_val = array[0]
+    last_val = array[-1]
+    sum_val = first_val + last_val
+
+    if sum_val % 2 == 0:
+        array.sort(reverse=True)
+    else:
+        array.sort()
+
+    return array
+
+nfe:  69
+avg nfe:  100.74157303370787
+====================
+
+Generating...:  54%|█████▍    | 89/164 [04:17<03:19,  2.66s/it]====================
+answer:      encrypted_s = ""
+    for char in s:
+        if char.isalpha():
+            # Check if the character is a letter
+            shift = 2 * 2  # Shift down by 2 multiplied by 2
+            new_char = chr((ord(char) - ord('a') + shift) % 26 + ord('a'))
+            encrypted_s += new_char
+        else:
+            # If it's not a letter, keep it as is
+            encrypted_s += char
+    return encrypted_s
+
+nfe:  130
+avg nfe:  101.06666666666666
+====================
+
+Generating...:  55%|█████▍    | 90/164 [04:20<03:39,  2.96s/it]====================
+answer:      if len(lst) < 2:
+        return None
+    
+    # Sort the list
+    lst.sort()
+    
+    # Return the second element in the sorted list
+    return lst[1]
+
+nfe:  101
+avg nfe:  101.06593406593407
+====================
+
+Generating...:  55%|█████▌    | 91/164 [04:23<03:33,  2.93s/it]====================
+answer:      count = 0
+    sentences = S.split('.?!')
+    for sentence in sentences:
+        if 'I' in sentence:
+            count += 1
+    return count
+
+nfe:  123
+avg nfe:  101.30434782608695
+====================
+
+Generating...:  56%|█████▌    | 92/164 [04:27<03:42,  3.09s/it]====================
+answer:      # Check if all inputs are integers
+    if not (isinstance(x, int) and isinstance(y, int) and isinstance(z, int)):
+        return False
+    
+    # Check if one of the numbers is equal to the sum of the other two
+    return x == x + y or y == y + z or z == x + y
+
+nfe:  103
+avg nfe:  101.3225806451613
+====================
+
+Generating...:  57%|█████▋    | 93/164 [04:30<03:36,  3.05s/it]====================
+answer:      vowels = 'aeiouAEIOU'
+    encoded_message = []
+    
+    for char in message:
+        if char.isalpha():
+            if char in vowels:
+                # Replace vowel with the letter two places ahead
+                encoded_char = chr(ord(char) + 2)
+                encoded_message.append(encoded_char)
+            else:
+                # Swap case of the letter
+                encoded_char = char.upper()
+                encoded_message.append(encoded_char)
+        else:
+            # Non-alphabetic characters are added as is
+            encoded_message.append(char)
+    
+    return ''.join(encoded_message)
+
+nfe:  126
+avg nfe:  101.58510638297872
+====================
+
+Generating...:  57%|█████▋    | 94/164 [04:33<03:44,  3.20s/it]====================
+answer:      def is_prime(n):
+        if n <= 1:
+            return False
+        if n <= 3:
+            return True
+        if n % 2 == 0 or n % 3 == 0:
+            return False
+        i = 5
+        while i * i <= n:
+            if n % i == 0 or n % (i + 2) == 0:
+                return False
+            i += 6
+        return True
+
+    def sum_of_digits(n):
+        return sum(int(digit) for digit in str(n))
+
+    largest_prime = None
+    for num in lst:
+        if is_prime(num):
+            if largest_prime is None or num > largest_prime:
+                largest_prime = num
+
+    return sum_of_digits(largest_prime)
+
+nfe:  73
+avg nfe:  101.28421052631579
+====================
+
+Generating...:  58%|█████▊    | 95/164 [04:35<03:19,  2.90s/it]====================
+answer:      if not dict:
+        return False
+
+    all_lower = all(key.lower() for key in dict)
+    all_upper = all(key.upper() for key in dict)
+
+    return all_lower or all_upper
+
+nfe:  92
+avg nfe:  101.1875
+====================
+
+Generating...:  59%|█████▊    | 96/164 [04:38<03:12,  2.82s/it]====================
+answer:      if n < 0:
+        return []
+    primes = []
+    num = 2
+    while len(primes) < n:
+        if num % 2 == 0:
+            num += 1
+        else:
+            primes.append(num)
+            if num % 2 == 0:
+                num += 1
+            else:
+                num += 1
+    return primes
+
+nfe:  80
+avg nfe:  100.96907216494846
+====================
+
+Generating...:  59%|█████▉    | 97/164 [04:40<02:58,  2.67s/it]====================
+answer:      # Get the unit digits of a and b
+    unit_digit_a = a % 10
+    unit_digit_b = b % 10
+    
+    # Calculate the product of the unit digits
+    product = unit_digit_a * unit_digit_b
+    
+    return product
+
+nfe:  98
+avg nfe:  100.93877551020408
+====================
+
+Generating...:  60%|█████▉    | 98/164 [04:43<02:57,  2.70s/it]====================
+answer:      count = 0
+    for i in range(0, len(s), 2):
+        if s[i].isupper():
+            count += 1
+    return count
+
+nfe:  106
+avg nfe:  100.98989898989899
+====================
+
+Generating...:  60%|██████    | 99/164 [04:46<03:00,  2.78s/it]====================
+answer:      try:
+        num = float(value)
+    except ValueError:
+        raise ValueError("Input must be a string representing a number")
+
+    int_num = int(num)
+    floor_num = int(num)
+
+    if int_num == floor_num:
+        return int_num
+
+    if num > int_num:
+        return int_num
+
+    if num < floor_num:
+        return floor_num
+
+    return int_num
+
+nfe:  158
+avg nfe:  101.56
+====================
+
+Generating...:  61%|██████    | 100/164 [04:50<03:30,  3.29s/it]====================
+answer:      pile = []
+    for i in range(n):
+        if n % 2 == 0:
+            n = n + 1
+        else:
+            n = n + 2
+        pile.append(n)
+    return pile
+
+nfe:  107
+avg nfe:  101.61386138613861
+====================
+
+Generating...:  62%|██████▏   | 101/164 [04:54<03:23,  3.23s/it]====================
+answer:      # Split the string by commas and spaces
+    words = s.split(', ')
+    return words
+
+nfe:  128
+avg nfe:  101.87254901960785
+====================
+
+Generating...:  62%|██████▏   | 102/164 [04:57<03:27,  3.35s/it]====================
+answer:      # Check if x and y are even
+    if x % 2 != 0 or y % 2 != 0:
+        return -1
+
+    # Find the largest even number in the range [x, y]
+    max_even = max(x, y)
+    return max_even
+
+nfe:  135
+avg nfe:  102.19417475728156
+====================
+
+Generating...:  63%|██████▎   | 103/164 [05:01<03:32,  3.49s/it]====================
+answer:      if n > m:
+        return -1
+
+    # Calculate the sum of integers from n to m
+    total = sum(range(n, m + 1))
+
+    # Calculate the average
+    avg = total / (m - n + 1)
+
+    # Round the average to the nearest integer
+    rounded_avg = round(avg)
+
+    # Convert the rounded average to binary
+    binary_avg = bin(rounded_avg)[2:]
+
+    return binary_avg
+
+nfe:  79
+avg nfe:  101.97115384615384
+====================
+
+Generating...:  63%|██████▎   | 104/164 [05:03<03:07,  3.13s/it]====================
+answer:      def has_even_digit(n):
+        return any(d % 2 == 0 for d in str(n))
+
+    def has_unique_digits(n):
+        return len(str(n)) == len(set(str(n)))
+
+    result = [num for num in x if not has_even_digit(num) and has_unique_digits(num)]
+    result.sort()
+    return result
+
+nfe:  103
+avg nfe:  101.98095238095237
+====================
+
+Generating...:  64%|██████▍   | 105/164 [05:06<03:00,  3.07s/it]====================
+answer:      # Filter out numbers that are not between 1 and 9
+    filtered_arr = [num for num in arr if 1 <= num <= 9]
+    
+    # Sort the filtered array
+    sorted_arr = sorted(filtered_arr)
+    
+    # Reverse the sorted array
+    reversed_arr = sorted_arr[::-1]
+    
+    # Replace each digit with its corresponding name
+    digit_names = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
+    result = [digit_names[num - 1] for num in reversed_arr]
+    
+    return result
+
+nfe:  72
+avg nfe:  101.69811320754717
+====================
+
+Generating...:  65%|██████▍   | 106/164 [05:08<02:41,  2.79s/it]====================
+answer:      result = []
+    for i in range(1, n + 1):
+        if i % 2 == 0:
+            result.append(math.factorial(i))
+        else:
+            result.append(sum(range(1, i + 1)))
+    return result
+
+nfe:  101
+avg nfe:  101.69158878504673
+====================
+
+Generating...:  65%|██████▌   | 107/164 [05:11<02:41,  2.83s/it]====================
+answer:      def is_palindrome(x):
+        return str(x) == str(x)[::-1]
+
+    even_palindromes = 0
+    odd_palindromes = 0
+
+    for i in range(1, n + 1):
+        if is_palindrome(i):
+            if i % 2 == 0:
+                even_palindromes += 1
+            else:
+                odd_palindromes += 1
+
+    return (even_palindromes, odd_palindromes)
+
+nfe:  58
+avg nfe:  101.28703703703704
+====================
+
+Generating...:  66%|██████▌   | 108/164 [05:13<02:19,  2.50s/it]====================
+answer:      count = 0
+    for num in arr:
+        if num < 0:
+            num = -num
+        digits = str(abs(num))
+        total = sum(int(digit) for digit in digits)
+        if total > 0:
+            count += 1
+    return count
+
+nfe:  139
+avg nfe:  101.63302752293578
+====================
+
+Generating...:  66%|██████▋   | 109/164 [05:17<02:41,  2.94s/it]====================
+answer:      if not arr:
+        return True
+
+    # Sort the array
+    arr.sort()
+
+    # Find the index of the largest element
+    max_index = arr.index(max(arr))
+
+    # If the largest element is at the first position, we can sort the array
+    # by performing one right shift operation
+    if max_index == 0:
+        return True
+
+    # If the largest element is not at the first position, we need to check
+    # if we can sort the array by performing multiple right shift operations
+    # until the largest element is at the first position
+    for i in range(len(arr) - 1):
+        if arr[i] > arr[i + 1]:
+            # If we can find a pair of elements where the left element is greater
+            # than the right element, we can sort the array by performing
+            # multiple right shift operations
+            return True
+
+    # If we can't find such a pair, it means the array cannot be sorted
+    # by performing right shift operations
+    return False
+
+nfe:  198
+avg nfe:  102.50909090909092
+====================
+
+Generating...:  67%|██████▋   | 110/164 [05:23<03:23,  3.77s/it]====================
+answer:      # Count the number of odd numbers in lst1
+    odd_count = sum(1 for x in lst1 if x % 2 != 0)
+    
+    # Count the number of odd numbers in lst2
+    odd_count_lst2 = sum(1 for x in lst2 if x % 2 != 0)
+    
+    # If the number of odd numbers in lst1 is less than or equal to the number of odd numbers in lst2
+    if odd_count <= odd_count_lst2:
+        return "YES"
+    else:
+        return "NO"
+
+nfe:  108
+avg nfe:  102.55855855855856
+====================
+
+Generating...:  68%|██████▊   | 111/164 [05:26<03:09,  3.57s/it]====================
+answer:      letters = test.split()
+    counts = {}
+    for letter in letters:
+        if letter not in counts:
+            counts[letter] = 1
+        else:
+            counts[letter] += 1
+
+    max_count = max(counts.values())
+    max_count_letters = [letter for letter, count in counts.items() if count == max_count]
+
+    return {letter: max_count for letter in max_count_letters}
+
+nfe:  93
+avg nfe:  102.47321428571429
+====================
+
+Generating...:  68%|██████▊   | 112/164 [05:28<02:51,  3.30s/it]====================
+answer:      # Initialize the result string
+    result = ""
+    
+    # Iterate through each character in s
+    for char in s:
+        if char not in c:
+            # If the character is not in c, add it to the result string
+            result += char
+    
+    # Check if the result string is a palindrome
+    if result == result[::-1]:
+        return result, True
+    else:
+        return result, False
+
+nfe:  91
+avg nfe:  102.3716814159292
+====================
+
+Generating...:  69%|██████▉   | 113/164 [05:31<02:37,  3.10s/it]====================
+answer:      result = []
+    for i, s in enumerate(lst):
+        odd_count = sum(1 for d in s if d % 2 != 0)
+        result.append(f"the number of odd elements in the string {i + 1} of the input. ")
+    return result
+
+nfe:  53
+avg nfe:  101.93859649122807
+====================
+
+Generating...:  70%|██████▉   | 114/164 [05:33<02:11,  2.64s/it]====================
+answer:      if not nums:
+        return 0
+
+    min_sum = nums[0]
+    current_sum = nums[0]
+
+    for num in nums[1:]:
+        current_sum = min(num, current_sum + num)
+        min_sum = min(min_sum, current_sum)
+
+    return min_sum
+
+nfe:  130
+avg nfe:  102.18260869565218
+====================
+
+Generating...:  70%|███████   | 115/164 [05:36<02:23,  2.94s/it]====================
+answer:      water = 0
+    for row in grid:
+        for cell in row:
+            if cell == 1:
+                water += 1
+    buckets = 0
+    while water > 0:
+        buckets += math.ceil(water / capacity)
+        water -= buckets * capacity
+    return buckets
+
+nfe:  92
+avg nfe:  102.09482758620689
+====================
+
+Generating...:  71%|███████   | 116/164 [05:39<02:17,  2.87s/it]====================
+answer:      return sorted(arr, key=lambda x: (x, bin(x).count('1')))
+
+nfe:  149
+avg nfe:  102.4957264957265
+====================
+
+Generating...:  71%|███████▏  | 117/164 [05:43<02:34,  3.29s/it]====================
+answer:      if not s:
+        return []
+
+    words = s.split()
+    consonants = "bcdfghjklmnpqrstvwxyz"
+    result = []
+
+    for word in words:
+        consonants = sum(1 for c in word if c in consonants)
+        if consonants == n:
+            result.append(word)
+
+    return result
+
+nfe:  86
+avg nfe:  102.35593220338983
+====================
+
+Generating...:  72%|███████▏  | 118/164 [05:46<02:20,  3.05s/it]====================
+answer:      vowels = "aeiouAEIOU"
+    consonants = "bcdfghjklmnpqrstvwxyz"
+    i = 0
+    while i < len(word):
+        if word[i] in vowels:
+            i += 1
+        elif word[i] in consonants:
+            if i + 1 < len(word) and word[i + 1] in consonants:
+                return word[i]
+            i += 1
+    return ""
+
+nfe:  143
+avg nfe:  102.69747899159664
+====================
+
+Generating...:  73%|███████▎  | 119/164 [05:50<02:31,  3.36s/it]====================
+answer:      def is_balanced(s):
+        stack = []
+        for c in s:
+            if c == '(':
+                stack.append(c)
+            elif c == ')':
+                if not stack:
+                    return False
+                stack.pop()
+        return not stack
+
+    def can_form_good(s1, s2):
+        if not is_balanced(s1) or not is_balanced(s2):
+            return False
+        if len(s1) != len(s2):
+            return False
+        if s1 == '(' and s2 == ')':
+            return True
+        if s1 == ')' and s2 == '(':
+            return True
+        return False
+
+    for i in range(len(lst)):
+        for j in range(i + 1, len(lst)):
+            if can_form_good(lst[i], lst[j]):
+                return 'Yes'
+    return 'No'
+
+
+nfe:  111
+avg nfe:  102.76666666666667
+====================
+
+Generating...:  73%|███████▎  | 120/164 [05:53<02:25,  3.31s/it]====================
+answer:      # Sort the array in descending order
+    arr.sort(reverse=True)
+    
+    # Return the first k elements
+    return arr[:k]
+
+nfe:  108
+avg nfe:  102.8099173553719
+====================
+
+Generating...:  74%|███████▍  | 121/164 [05:56<02:19,  3.25s/it]====================
+answer:      result = 0
+    for i in range(len(lst)):
+        if i % 2 == 0 and lst[i] % 2 != 0:
+            result += lst[i]
+    return result
+
+nfe:  63
+avg nfe:  102.48360655737704
+====================
+
+Generating...:  74%|███████▍  | 122/164 [05:58<01:58,  2.81s/it]====================
+answer:      total_sum = 0
+    for i in range(k):
+        if len(str(arr[i])) <= 2:
+            total_sum += arr[i]
+    return total_sum
+
+nfe:  104
+avg nfe:  102.4959349593496
+====================
+
+Generating...:  75%|███████▌  | 123/164 [06:01<01:57,  2.86s/it]====================
+answer:      collatz_sequence = []
+    while n != 1:
+        if n % 2 == 0:
+            n = n // 2
+        else:
+            n = 3 * n + 1
+        collatz_sequence.append(n)
+    odd_numbers = collatz_sequence[:]
+    odd_numbers.sort()
+    return odd_numbers
+
+nfe:  134
+avg nfe:  102.75
+====================
+
+Generating...:  76%|███████▌  | 124/164 [06:05<02:06,  3.16s/it]====================
+answer:      parts = date.split('-')
+    if len(parts) != 3:
+        return False
+
+    month, day, year = parts
+    month = int(month)
+    day = int(day)
+    year = int(year)
+
+    if month < 1 or month > 12:
+        return False
+
+    if month == 2:
+        if day < 1 or day > 29:
+            return False
+
+    if month in [1, 3, 5, 7, 8, 10, 12]:
+        if day < 1 or day > 31:
+            return False
+
+    if month in [4, 6, 9, 11]:
+        if day < 1 or day > 30:
+            return False
+
+    return True
+
+nfe:  89
+avg nfe:  102.64
+====================
+
+Generating...:  76%|███████▌  | 125/164 [06:07<01:56,  3.00s/it]====================
+answer:      if ',' in txt:
+        words = txt.split(',')
+    else:
+        words = txt.split()
+    return words
+
+nfe:  79
+avg nfe:  102.45238095238095
+====================
+
+Generating...:  77%|███████▋  | 126/164 [06:10<01:45,  2.78s/it]====================
+answer:      if len(lst) <= 1:
+        return True
+    for i in range(len(lst) - 1):
+        if lst[i] > lst[i + 1]:
+            return False
+    return True
+
+nfe:  58
+avg nfe:  102.10236220472441
+====================
+
+Generating...:  77%|███████▋  | 127/164 [06:11<01:31,  2.47s/it]====================
+answer:      def is_prime(n):
+        """Check if a number is prime."""
+        if n <= 1:
+            return False
+        if n <= 3:
+            return True
+        if n % 2 == 0 or n % 3 == 0:
+            return False
+        i = 5
+        while i * i <= n:
+            if n % i == 0 or n % (i + 2) == 0:
+                return False
+            i += 6
+        return True
+
+    start1, end1 = interval1
+    start2, end2 = interval2
+
+    if start1 > end2 or end1 < start2:
+        return "NO"
+
+    start_inter = max(start1, start2)
+    end_inter = min(end1, end2)
+
+    length = end_inter - start_inter + 1
+
+    if length == 0:
+        return "NO"
+
+    if is_prime(length):
+        return "YES"
+    else:
+        return "NO"
+nfe:  90
+avg nfe:  102.0078125
+====================
+
+Generating...:  78%|███████▊  | 128/164 [06:14<01:30,  2.52s/it]====================
+answer:      if not arr:
+        return None
+
+    result = 0
+    for num in arr:
+        magnitude = abs(num)
+        sign = 1 if num > 0 else -1
+        result += magnitude * sign
+
+    return result
+
+nfe:  140
+avg nfe:  102.30232558139535
+====================
+
+Generating...:  79%|███████▊  | 129/164 [06:18<01:44,  3.00s/it]====================
+answer:      n = len(grid)
+    m = len(grid[0])
+    path = []
+    visited = []
+    result = []
+    x = 0
+    y = 0
+    for i in range(n):
+        for j in range(m):
+            if grid[i][j] == 1:
+                x = i
+                y = j
+                break
+    directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    for _ in range(k):
+        result.append(grid[x][y])
+        path.append(grid[x][y])
+        visited.append(grid[x][y])
+        for direction in directions:
+            nx, ny = x + direction[0], y + direction[1]
+            if 0 <= nx < n and 0 <= ny < m and grid[nx][ny] not in visited:
+                result.append(grid[nx][ny])
+                path.append(grid[nx][ny])
+                visited.append(grid[nx][ny])
+                x, y = nx, ny
+                break
+        if x == y:
+            break
+    return result
+nfe:  140
+avg nfe:  102.5923076923077
+====================
+
+Generating...:  79%|███████▉  | 130/164 [06:22<01:55,  3.40s/it]====================
+answer:      if n == 0:
+        return [1]
+    elif n == 1:
+        return [3]
+    elif n == 2:
+        return [1, 2]
+    elif n == 3:
+        return [1, 3, 2]
+    elif n == 4:
+        return [1, 2, 2, 3]
+    elif n == 5:
+        return [1, 2, 2, 3, 8]
+    elif n == 6:
+        return [1, 2, 2, 3, 8, 17]
+    elif n == 7:
+        return [1, 2, 2, 3, 8, 17, 40]
+    else:
+        return []
+
+    # Example:
+    # print(tri(3)) # [1, 3, 2, 8]
+    # print(tri(0)) # [1]
+    # print(tri(1)) # [3]
+    # print(tri(2)) # [1, 2]
+nfe:  110
+avg nfe:  102.64885496183206
+====================
+
+Generating...:  80%|███████▉  | 131/164 [06:26<01:51,  3.37s/it]====================
+answer:      product = 1
+    for digit in str(n):
+        if int(digit) % 2 != 0:
+            product *= int(digit)
+    return product
+
+nfe:  122
+avg nfe:  102.79545454545455
+====================
+
+Generating...:  80%|████████  | 132/164 [06:29<01:49,  3.44s/it]====================
+answer:      stack = []
+    for char in string:
+        if char == '[':
+            stack.append(char)
+        elif char == ']':
+            if not stack or stack[-1] != '[':
+                return False
+            stack.pop()
+    return not stack
+
+nfe:  121
+avg nfe:  102.93233082706767
+====================
+
+Generating...:  81%|████████  | 133/164 [06:33<01:48,  3.49s/it]====================
+answer:      # Round each element to the nearest integer (ceiling)
+    rounded_lst = [math.ceil(x) for x in lst]
+    
+    # Calculate the sum of squared numbers
+    sum_squares = sum(x ** 2 for x in rounded_lst)
+    
+    return sum_squares
+
+nfe:  81
+avg nfe:  102.76865671641791
+====================
+
+Generating...:  82%|████████▏ | 134/164 [06:35<01:35,  3.18s/it]====================
+answer:      if not txt:
+        return False
+
+    words = txt.split()
+    last_word = words[-1]
+
+    # Check if the last character is a part of the last word
+    if last_word:
+        if last_word[-1] in last_word:
+            return False
+
+    # Check if the last character is an alphabetical character
+    return last_word[-1].isalpha()
+
+nfe:  121
+avg nfe:  102.9037037037037
+====================
+
+Generating...:  82%|████████▏ | 135/164 [06:39<01:36,  3.32s/it]====================
+answer:      n = len(arr)
+    for i in range(n):
+        if arr[i] < arr[i - 1]:
+            return i
+    return -1
+
+nfe:  129
+avg nfe:  103.09558823529412
+====================
+
+Generating...:  83%|████████▎ | 136/164 [06:43<01:37,  3.47s/it]====================
+answer:      if not lst:
+        return (None, None)
+
+    neg_numbers = [x for x in lst if x < 0]
+    pos_numbers = [x for x in lst if x > 0]
+
+    if not neg_numbers:
+        return (None, None)
+    if not pos_numbers:
+        return (None, None)
+
+    largest_negative = max(neg_numbers)
+    smallest_positive = min(pos_numbers)
+
+    return (largest_negative, smallest_positive)
+
+nfe:  81
+avg nfe:  102.93430656934306
+====================
+
+Generating...:  84%|████████▎ | 137/164 [06:45<01:25,  3.16s/it]====================
+answer:      if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        if a > b:
+            return a
+        elif a < b:
+            return b
+        else:
+            return None
+    elif isinstance(a, str) and isinstance(b, str):
+        if float(a) > float(b):
+            return a
+        elif float(a) < float(b):
+            return b
+        else:
+            return None
+    else:
+        return None
+
+nfe:  99
+avg nfe:  102.90579710144928
+====================
+
+Generating...:  84%|████████▍ | 138/164 [06:48<01:20,  3.11s/it]====================
+answer:      # n must be even for the sum of 4 even numbers
+    if n % 2 != 0:
+        return False
+
+    # The first even number is 2, the second is 4, etc.
+    # We need to find 4 even numbers that sum up to n
+    # Let's assume the first even number is 2
+    a = 2
+    b = 4
+    c = 6
+    d = 8
+
+    # Check if the sum of these 4 even numbers equals n
+    if a + b + c + d == n:
+        return True
+    else:
+        return False
+
+nfe:  152
+avg nfe:  103.2589928057554
+====================
+
+Generating...:  85%|████████▍ | 139/164 [06:53<01:28,  3.52s/it]====================
+answer:      if n < 0:
+        raise ValueError("Input must be a positive integer")
+    
+    result = 1
+    for i in range(1, n + 1):
+        result *= special_factorial(i)
+    
+    return result
+
+nfe:  116
+avg nfe:  103.35
+====================
+
+Generating...:  85%|████████▌ | 140/164 [06:56<01:23,  3.49s/it]====================
+answer:      result = ""
+    count = 0
+    for char in text:
+        if char == " ":
+            count += 1
+        else:
+            if count == 1:
+                result += char
+            elif count == 2:
+                result += "_"
+            else:
+                result += "-"
+            count = 0
+    return result
+
+nfe:  132
+avg nfe:  103.55319148936171
+====================
+
+Generating...:  86%|████████▌ | 141/164 [07:00<01:22,  3.61s/it]====================
+answer:      # Check if there are more than three digits in the file name
+    if len(file_name) > 3:
+        return 'No'
+
+    # Check if the file name contains exactly one dot
+    if '.' not in file_name:
+        return 'No'
+
+    # Check if the substring before the dot is not empty and starts with a latin letter
+    file_parts = file_name.split('.')
+    if not file_parts:
+        return 'No'
+    if not file_parts[0].isalpha():
+        return 'No'
+
+    # Check if the substring after the dot is one of the valid extensions
+    valid_extensions = ['txt', 'exe', 'dll']
+    if file_parts[1] not in valid_extensions:
+        return 'No'
+
+    # If all conditions are met, return 'Yes'
+    return 'Yes'
+
+nfe:  112
+avg nfe:  103.61267605633803
+====================
+
+Generating...:  87%|████████▋ | 142/164 [07:03<01:17,  3.53s/it]====================
+answer:      total = 0
+    for i in range(len(lst)):
+        if i % 3 == 0:
+            total += lst[i] ** 2
+        elif i % 4 == 0 and i % 3 != 0:
+            total += lst[i] ** 3
+        else:
+            total += lst[i]
+    return total
+
+nfe:  110
+avg nfe:  103.65734265734265
+====================
+
+Generating...:  87%|████████▋ | 143/164 [07:07<01:12,  3.45s/it]====================
+answer:      def is_prime(n):
+        """
+        Check if a number is a prime number.
+        """
+        if n <= 1:
+            return False
+        if n <= 3:
+            return True
+        if n % 2 == 0 or n % 3 == 0:
+            return False
+        i = 5
+        while i * i <= n:
+            if n % i == 0 or n % (i + 2) == 0:
+                return False
+            i += 6
+        return True
+
+    words = sentence.split()
+    prime_words = [word for word in words if is_prime(len(word))]
+    return ' '.join(prime_words)
+
+nfe:  84
+avg nfe:  103.52083333333333
+====================
+
+Generating...:  88%|████████▊ | 144/164 [07:09<01:03,  3.18s/it]====================
+answer:      # Convert the fractions to integers
+    num1, den1 = map(int, x.split('/'))
+    num2, den2 = map(int, n.split('/'))
+
+    # Calculate the product
+    product = num1 * den2
+
+    # Check if the product is a whole number
+    return product == num2 * den1
+
+nfe:  140
+avg nfe:  103.77241379310345
+====================
+
+Generating...:  88%|████████▊ | 145/164 [07:13<01:06,  3.48s/it]====================
+answer:      def sum_of_digits(n):
+        return sum(int(d) for d in str(n))
+
+    return sorted(nums, key=lambda x: (sum_of_digits(x), nums.index(x)))
+
+nfe:  111
+avg nfe:  103.82191780821918
+====================
+
+Generating...:  89%|████████▉ | 146/164 [07:17<01:01,  3.41s/it]====================
+answer:      count = 0
+    for num in nums:
+        if num > 10:
+            first_digit = str(num)[0]
+            last_digit = str(num)[-1]
+            if first_digit in ['1', '3', '5', '7', '9'] and last_digit in ['1', '3', '5', '7', '9']:
+                count += 1
+    return count
+
+nfe:  89
+avg nfe:  103.72108843537416
+====================
+
+Generating...:  90%|████████▉ | 147/164 [07:19<00:54,  3.19s/it]====================
+answer:      a = [i * i - i + 1 for i in range(n)]
+    count = 0
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            for k in range(j + 1, n):
+                if a[i] + a[j] + a[k] % 3 == 0:
+                    count += 1
+
+    return count
+
+nfe:  98
+avg nfe:  103.68243243243244
+====================
+
+Generating...:  90%|█████████ | 148/164 [07:22<00:49,  3.11s/it]====================
+answer:      planets = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+    result = ()
+
+    # Check if planet1 and planet2 are valid planet names
+    if planet1 not in planets or planet2 not in planets:
+        return result
+
+    # Find the indices of planet1 and planet2 in the list
+    index1 = planets.index(planet1)
+    index2 = planets.index(planet2)
+
+    # Create the list of planets between planet1 and planet2
+    between_blanets = planets[index1:index2 + 1]
+
+    # Convert the list of planets to a tuple
+    result = tuple(between_blanets)
+
+    return result
+
+nfe:  99
+avg nfe:  103.6510067114094
+====================
+
+Generating...:  91%|█████████ | 149/164 [07:25<00:45,  3.05s/it]====================
+answer:      # Filter out strings with odd lengths
+    filtered_lst = [word for word in lst if len(word) % 2 == 0]
+    
+    # Sort the filtered list by length first, and then alphabetically
+    sorted_lst = sorted(filtered_lst, key=lambda x: (len(x), x))
+    
+    return sorted_lst
+
+nfe:  114
+avg nfe:  103.72
+====================
+
+Generating...:  91%|█████████▏| 150/164 [07:29<00:43,  3.13s/it]====================
+answer:      if is_prime(n):
+        return x
+    else:
+        return y
+
+nfe:  86
+avg nfe:  103.60264900662251
+====================
+
+Generating...:  92%|█████████▏| 151/164 [07:31<00:38,  2.98s/it]====================
+answer:      if not lst:
+        return 0
+    
+    # Filter out non-integer and negative numbers
+    filtered_lst = [num for num in lst if isinstance(num, int) and num >= 0]
+    
+    # Calculate the sum of squares of odd numbers
+    sum_of_squares = sum(num ** 2 for num in filtered_lst if num % 2 != 0)
+    
+    return sum_of_squares
+
+nfe:  81
+avg nfe:  103.45394736842105
+====================
+
+Generating...:  93%|█████████▎| 152/164 [07:34<00:33,  2.82s/it]====================
+answer:      result = []
+    for i in range(len(game)):
+        if game[i] == guess[i]:
+            result.append(0)
+        else:
+            result.append(abs(game[i] - guess[i]))
+    return result
+
+nfe:  38
+avg nfe:  103.02614379084967
+====================
+
+Generating...:  93%|█████████▎| 153/164 [07:35<00:25,  2.34s/it]====================
+answer:      strongest_extension = None
+    max_strength = 0
+    
+    for ext in extensions:
+        cap = sum(c.isupper() for c in ext)
+        sm = sum(c.islower() for c in ext)
+        strength = cap - sm
+        
+        if strength > max_strength:
+            max_strength = strength
+            strongest_extension = ext
+        elif strength == max_strength:
+            if extensions.index(ext) < extensions.index(strongest_extension):
+                strongest_extension = ext
+    
+    return f"{class_name}.{strongest_extension}"
+
+nfe:  105
+avg nfe:  103.03896103896103
+====================
+
+Generating...:  94%|█████████▍| 154/164 [07:38<00:25,  2.59s/it]====================
+answer:      n = len(b)
+    m = len(a)
+    if n != m:
+        return False
+
+    for i in range(n):
+        if b[:i] in a:
+            return True
+    return False
+
+nfe:  117
+avg nfe:  103.12903225806451
+====================
+
+Generating...:  95%|█████████▍| 155/164 [07:42<00:25,  2.88s/it]====================
+answer:      # Convert the number to a string to iterate over each digit
+    num_str = str(num)
+    
+    # Initialize counters for even and odd digits
+    even_count = 0
+    odd_count = 0
+    
+    # Iterate over each digit in the string
+    for digit in num_str:
+        # Convert the character back to an integer
+        digit = int(digit)
+        
+        # Check if the digit is even or odd
+        if digit % 2 == 0:
+            even_count += 1
+        else:
+            odd_count += 1
+    
+    # Return the result as a tuple
+    return (even_count, odd_count)
+
+nfe:  74
+avg nfe:  102.9423076923077
+====================
+
+Generating...:  95%|█████████▌| 156/164 [07:44<00:21,  2.67s/it]====================
+answer:      assert 1 <= number <= 1000, "Number must be between 1 and 1000"
+
+    val = [
+        1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1
+    ]
+    syb = [
+        "m", "cm", "d", "d", "cd", "c", "xc", "l", "xl", "x", "ix", "v", "iv", "i"
+    ]
+
+    result = ""
+    for i in range(len(val)):
+        while number >= val[i]:
+            result += syb[i]
+            number -= val[i]
+    return result.lower()
+
+
+nfe:  105
+avg nfe:  102.95541401273886
+====================
+
+Generating...:  96%|█████████▌| 157/164 [07:47<00:19,  2.80s/it]====================
+answer:      # Check if the sides form a valid triangle
+    if a + b <= c or b + c <= a or c + a <= b:
+        return False
+
+    # Check if the sides form a right-angled triangle
+    return a**2 + b**2 == c**2
+
+nfe:  111
+avg nfe:  103.00632911392405
+====================
+
+Generating...:  96%|█████████▋| 158/164 [07:50<00:17,  2.95s/it]====================
+answer:      max_count = 0
+    max_word = ""
+    for word in words:
+        count = len(set(word))
+        if count > max_count:
+            max_count = count
+            max_word = word
+        elif count == max_count and word < max_word:
+            max_word = word
+    return max_word
+
+nfe:  91
+avg nfe:  102.93081761006289
+====================
+
+Generating...:  97%|█████████▋| 159/164 [07:53<00:14,  2.87s/it]====================
+answer:      total_left = number + need
+    remaining_left = remaining - need
+    return [total_left, remaining_left]
+
+nfe:  119
+avg nfe:  103.03125
+====================
+
+Generating...:  98%|█████████▊| 160/164 [07:56<00:12,  3.10s/it]====================
+answer:      result = 0
+    for i in range(len(operand) - 1):
+        operand1 = operand[i]
+        operand = operand[i + 1]
+        if operator[i] == '+':
+            result += operand
+        elif operator[i] == '-':
+            result -= operand
+        elif operator[i] == '*':
+            result *= operand
+        elif operator[i] == '/':
+            result /= operand
+        elif operator[i] == '**':
+            result = result ** operand
+        else:
+            raise ValueError(f"Unknown operator: {operator[i]}")
+    return result
+
+nfe:  134
+avg nfe:  103.22360248447205
+====================
+
+Generating...:  98%|█████████▊| 161/164 [08:00<00:10,  3.38s/it]====================
+answer:      if not s:
+        return s[::-1]
+
+    result = []
+    for char in s:
+        if char.isalpha():
+            result.append(charswapcase())
+        else:
+            result.append(char)
+
+    return ''.join(result)
+
+nfe:  124
+avg nfe:  103.35185185185185
+====================
+
+Generating...:  99%|█████████▉| 162/164 [08:04<00:06,  3.44s/it]====================
+answer:      if not text:
+        return None
+    md5_hash = hashlib.md5()
+    md5_hash.update(text.encode('utf-8'))
+    return md5_hash.hexdigest()
+
+nfe:  107
+avg nfe:  103.37423312883436
+====================
+
+Generating...:  99%|█████████▉| 163/164 [08:07<00:03,  3.32s/it]====================
+answer:      if a > b:
+        return []
+
+    even_digits = []
+    for i in range(a, b + 1):
+        if i % 2 == 0:
+            even_digits.append(i)
+    even_digits.sort()
+    return even_digits
+
+nfe:  104
+avg nfe:  103.3780487804878
+====================
+
+Generating...: 100%|██████████| 164/164 [08:10<00:00,  3.21s/it]Generating...: 100%|██████████| 164/164 [08:10<00:00,  2.99s/it]
+Total number of tokens generated: 13632
+Total time taken: 490.5720491409302 seconds
+Tokens per second: 27.787967681884766
+Total NFE is 16954
+Tokens per forward (TPF): 0.8040580153465271
+fatal: not a git repository (or any of the parent directories): .git
+2026-05-02:16:08:52 INFO     [loggers.evaluation_tracker:247] Saving results aggregated
+2026-05-02:16:08:53 INFO     [loggers.evaluation_tracker:119] Saving per-task samples to /home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/llada/evals_results_0502/llada15_baseline/humaneval-s256-n200/41pjso2k/*.jsonl
+llada_dist ({'model_path': 'GSAI-ML/LLaDA-1.5', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}), gen_kwargs: ({}), limit: 164.0, num_fewshot: 0, batch_size: 1
+|  Tasks  |Version|  Filter   |n-shot|Metric|   |Value |   |Stderr|
+|---------|------:|-----------|-----:|------|---|-----:|---|-----:|
+|humaneval|      1|create_test|     0|pass@1|   |0.3659|±  |0.0377|
+

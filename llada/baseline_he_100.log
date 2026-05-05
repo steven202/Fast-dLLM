@@ -1,0 +1,113 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `1`
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+2026-04-01:02:50:47 WARNING  [config.evaluate_config:281] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-04-01:02:50:50 INFO     [_cli.run:376] Selected Tasks: ['humaneval']
+2026-04-01:02:50:50 WARNING  [evaluator:181] pretrained=None appears to be an instruct or chat variant but chat template is not applied. Recommend setting `apply_chat_template`
+        (optionally `fewshot_as_multiturn`).
+2026-04-01:02:50:50 INFO     [evaluator:211] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-04-01:02:50:50 INFO     [evaluator:236] Initializing llada_dist model, with arguments: {'model_path': 'GSAI-ML/LLaDA-8B-Instruct', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 6/6 [00:00<00:00, 356.55it/s]
+Traceback (most recent call last):
+  File "/home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/llada/eval_llada.py", line 398, in <module>
+    cli_evaluate()
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/__main__.py", line 10, in cli_evaluate
+    parser.execute(args)
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/_cli/harness.py", line 60, in execute
+    args.func(args)
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/_cli/run.py", line 379, in _execute
+    results = simple_evaluate(
+              ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/utils.py", line 498, in _wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/evaluator.py", line 292, in simple_evaluate
+    task_dict = get_task_dict(
+                ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/__init__.py", line 646, in get_task_dict
+    task_name_from_string_dict = task_manager.load_task_or_group(
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/__init__.py", line 428, in load_task_or_group
+    collections.ChainMap(
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/__init__.py", line 430, in <lambda>
+    lambda task: self._load_individual_task_or_group(task),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/__init__.py", line 327, in _load_individual_task_or_group
+    task_config = self._get_config(name_or_config)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/__init__.py", line 235, in _get_config
+    return utils.load_yaml_config(yaml_path, mode="full")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/utils.py", line 543, in load_yaml_config
+    yaml_config = yaml.load(file, Loader=loader)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/yaml/__init__.py", line 81, in load
+    return loader.get_single_data()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/yaml/constructor.py", line 51, in get_single_data
+    return self.construct_document(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/yaml/constructor.py", line 60, in construct_document
+    for dummy in generator:
+  File "/usr/local/lib/python3.11/site-packages/yaml/constructor.py", line 413, in construct_yaml_map
+    value = self.construct_mapping(node)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/yaml/constructor.py", line 218, in construct_mapping
+    return super().construct_mapping(node, deep=deep)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/yaml/constructor.py", line 143, in construct_mapping
+    value = self.construct_object(value_node, deep=deep)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/yaml/constructor.py", line 100, in construct_object
+    data = constructor(self, node)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/utils.py", line 523, in import_function
+    spec.loader.exec_module(module)
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/humaneval/utils.py", line 10, in <module>
+    raise e
+  File "/usr/local/lib/python3.11/site-packages/lm_eval/tasks/humaneval/utils.py", line 8, in <module>
+    results = compute_.compute(references=test_cases, predictions=candidates, k=[1])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/evaluate/module.py", line 467, in compute
+    output = self._compute(**inputs, **compute_kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/.cache/huggingface/modules/evaluate_modules/metrics/evaluate-metric--code_eval/78d307ea938083398db7d9815f03ed661e9c15f60d77880ce007a8a02648f176/code_eval.py", line 159, in _compute
+    raise ValueError(_WARNING)
+ValueError: 
+################################################################################
+                                  !!!WARNING!!!
+################################################################################
+The "code_eval" metric executes untrusted model-generated code in Python.
+Although it is highly unlikely that model-generated code will do something
+overtly malicious in response to this test suite, model-generated code may act
+destructively due to a lack of model capability or alignment.
+Users are strongly encouraged to sandbox this evaluation suite so that it
+does not perform destructive actions on their host or network. For more
+information on how OpenAI sandboxes its code, see the paper "Evaluating Large
+Language Models Trained on Code" (https://arxiv.org/abs/2107.03374).
+
+Once you have read this disclaimer and taken appropriate precautions,
+set the environment variable HF_ALLOW_CODE_EVAL="1". Within Python you can to this
+with:
+
+>>> import os
+>>> os.environ["HF_ALLOW_CODE_EVAL"] = "1"
+
+################################################################################
+Traceback (most recent call last):
+  File "/usr/local/bin/accelerate", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/accelerate/commands/accelerate_cli.py", line 50, in main
+    args.func(args)
+  File "/usr/local/lib/python3.11/site-packages/accelerate/commands/launch.py", line 1281, in launch_command
+    simple_launcher(args)
+  File "/usr/local/lib/python3.11/site-packages/accelerate/commands/launch.py", line 869, in simple_launcher
+    raise subprocess.CalledProcessError(returncode=process.returncode, cmd=cmd)
+subprocess.CalledProcessError: Command '['/usr/local/bin/python3.11', 'eval_llada.py', '--tasks', 'humaneval', '--num_fewshot', '0', '--confirm_run_unsafe_code', '--model', 'llada_dist', '--model_args', 'model_path=GSAI-ML/LLaDA-8B-Instruct,gen_length=256,steps=256,block_length=32,use_cache=True,dual_cache=True,threshold=0.9,show_speed=True', '--limit', '100', '--batch_size', '1', '--output_path', '/tmp/baseline_results']' returned non-zero exit status 1.

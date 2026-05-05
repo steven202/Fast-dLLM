@@ -1,0 +1,13 @@
+#!/bin/bash
+# Dream Baseline (Fast-dLLM), n=200
+export HF_ALLOW_CODE_EVAL=1 HF_DATASETS_TRUST_REMOTE_CODE=true NCCL_P2P_DISABLE=1 PYTHONUNBUFFERED=1
+cd /tmp
+FD=/home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/dream
+mkdir -p $FD/evals_results_0502/dream_baseline
+BASE="pretrained=Dream-org/Dream-v0-Base-7B,max_new_tokens=256,diffusion_steps=256,block_length=32,add_bos_token=true,alg=confidence_threshold,threshold=0.9,use_cache=true,dual_cache=true,show_speed=True,dtype=bfloat16"
+for ds in "gsm8k 5 200" "humaneval 0 164" "minerva_math500 4 200" "mbpp 3 200"; do
+  set -- $ds; task=$1; fs=$2; lim=$3; out=$FD/evals_results_0502/dream_baseline/${task}-s256-n200
+  echo "--- $task (${fs}-shot) ---"
+  accelerate launch $FD/eval.py --model dream --model_args ${BASE} --tasks $task --num_fewshot $fs --batch_size 1 --output_path $out --log_samples --limit $lim --confirm_run_unsafe_code 2>&1 | tee -a $out.log
+done
+echo "=== Dream Baseline DONE ==="

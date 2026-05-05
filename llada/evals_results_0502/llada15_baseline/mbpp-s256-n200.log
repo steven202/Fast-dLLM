@@ -1,0 +1,2682 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `1`
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+2026-05-02:16:21:03 WARNING  [config.evaluate_config:281] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-05-02:16:21:05 INFO     [_cli.run:376] Selected Tasks: ['mbpp']
+2026-05-02:16:21:05 INFO     [evaluator:211] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-05-02:16:21:05 INFO     [evaluator:236] Initializing llada_dist model, with arguments: {'model_path': 'GSAI-ML/LLaDA-1.5', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 6/6 [00:00<00:00, 514.01it/s]
+2026-05-02:16:21:10 INFO     [tasks:700] Selected tasks:
+2026-05-02:16:21:10 INFO     [tasks:691] Task: mbpp (mbpp/mbpp.yaml)
+2026-05-02:16:21:10 INFO     [evaluator:314] mbpp: Using gen_kwargs: {'until': ['[DONE]'], 'do_sample': False}
+2026-05-02:16:21:10 WARNING  [evaluator:333] Overwriting default num_fewshot of mbpp from 3 to 3
+2026-05-02:16:21:10 INFO     [api.task:311] Building contexts for mbpp on rank 0...
+  0%|          | 0/200 [00:00<?, ?it/s] 14%|█▎        | 27/200 [00:00<00:00, 261.59it/s] 27%|██▋       | 54/200 [00:00<00:00, 259.44it/s] 40%|████      | 81/200 [00:00<00:00, 262.73it/s] 54%|█████▍    | 108/200 [00:00<00:00, 262.92it/s] 68%|██████▊   | 135/200 [00:00<00:00, 262.35it/s] 81%|████████  | 162/200 [00:00<00:00, 263.44it/s] 94%|█████████▍| 189/200 [00:00<00:00, 263.75it/s]100%|██████████| 200/200 [00:00<00:00, 263.13it/s]
+2026-05-02:16:21:11 INFO     [evaluator:584] Running generate_until requests
+Batching...:   0%|          | 0/200 [00:00<?, ?it/s]Batching...: 100%|██████████| 200/200 [00:00<00:00, 3084047.06it/s]
+Generating...:   0%|          | 0/200 [00:00<?, ?it/s]====================
+answer:  def remove_Occ(s, c):
+    result = s
+    for i in range(len(s)):
+        if s[i] == c:
+            result = s[:i] + s[i+1:]
+            break
+    return result
+
+nfe:  53
+avg nfe:  53.0
+====================
+
+Generating...:   0%|          | 1/200 [00:03<12:25,  3.74s/it]====================
+answer:  def sort_matrix(matrix):
+    # Calculate the sum of each row
+    row_sums = [sum(row) for row in matrix]
+
+    # Sort the rows based on their sums
+    row_sums.sort()
+
+    # Create the sorted matrix
+    sorted_matrix = []
+    for i in range(len(row_sums)):
+        sorted_matrix.append([row[i] for row in matrix])
+
+    return sorted_matrix
+
+nfe:  70
+avg nfe:  61.5
+====================
+
+Generating...:   1%|          | 2/200 [00:06<09:52,  2.99s/it]====================
+answer:  from collections import Counter
+def count_common(words):
+    counter = Counter(words)
+    most_common = counter.most_common()
+    return most_common
+
+nfe:  31
+avg nfe:  51.333333333333336
+====================
+
+Generating...:   2%|▏         | 3/200 [00:07<07:13,  2.20s/it]====================
+answer:  def find_Volume(a, b, c):
+    area = 0.5 * a * b
+    volume = area * c
+    return volume
+
+nfe:  34
+avg nfe:  47.0
+====================
+
+Generating...:   2%|▏         | 4/200 [00:08<06:01,  1.84s/it]====================
+answer:  def split_lowerstring(s):
+    result = []
+    for char in s:
+        if char.islower():
+            result.append(char)
+    return result
+
+nfe:  30
+avg nfe:  43.6
+====================
+
+Generating...:   2%|▎         | 5/200 [00:09<05:13,  1.61s/it]====================
+answer:  import re
+def text_lowercase_underscore(text):
+    pattern = re.compile(r'([a-z]+)_')
+    if pattern.search(text):
+        return 'Found a match!'
+    else:
+        return 'Not matched!'
+
+nfe:  41
+avg nfe:  43.166666666666664
+====================
+
+Generating...:   3%|▎         | 6/200 [00:11<05:05,  1.58s/it]====================
+answer:  def square_perimeter(side):
+    return 4 * side
+
+nfe:  20
+avg nfe:  39.857142857142854
+====================
+
+Generating...:   4%|▎         | 7/200 [00:12<04:20,  1.35s/it]====================
+answer:  def remove_dirty_chars(str1, str2):
+    char_set = set(str2)
+    result = ''.join([char for char in str1 if char not in char_set])
+    return result
+
+nfe:  35
+avg nfe:  39.25
+====================
+
+Generating...:   4%|▍         | 8/200 [00:13<04:16,  1.33s/it]====================
+answer:  def test_duplicate(arr):
+    seen = set()
+    for num in arr:
+        if num in seen:
+            return True
+        seen.add(num)
+    return False
+
+nfe:  26
+avg nfe:  37.77777777777778
+====================
+
+Generating...:   4%|▍         | 9/200 [00:14<03:57,  1.24s/it]====================
+answer:  def is_woodall(n):
+    if n < 100:
+        return False
+    if n % 100 == 0:
+        return False
+    if n % 10 == 5:
+        return False
+    if n % 10 == 0:
+        return False
+    return True
+
+nfe:  64
+avg nfe:  40.4
+====================
+
+Generating...:   5%|▌         | 10/200 [00:16<04:47,  1.51s/it]====================
+answer:  def multiples_of_num(n, m):
+    result = []
+    for i in range(m):
+        result.append(n * i)
+    return result
+
+nfe:  30
+avg nfe:  39.45454545454545
+====================
+
+Generating...:   6%|▌         | 11/200 [00:17<04:25,  1.40s/it]====================
+answer:  def find_first_duplicate(nums):
+    seen = {}
+    for num in nums:
+        if num in seen:
+            return num
+    return -1
+
+nfe:  41
+avg nfe:  39.583333333333336
+====================
+
+Generating...:   6%|▌         | 12/200 [00:19<04:27,  1.42s/it]====================
+answer:  def maximum_Sum(lst):
+    max_sum = 0
+    for i in lst:
+        max_sum = max(max_sum, sum(i))
+    return max_sum
+
+nfe:  30
+avg nfe:  38.84615384615385
+====================
+
+Generating...:   6%|▋         | 13/200 [00:20<04:11,  1.35s/it]====================
+answer:  def binary_to_decimal(binary_str):
+    return int(binary_str, 2)
+
+nfe:  19
+avg nfe:  37.42857142857143
+====================
+
+Generating...:   7%|▋         | 14/200 [00:21<03:41,  1.19s/it]====================
+answer:  def find_Product(arr, n):
+    product = 1
+    count = 0
+    for num in arr:
+        count += num
+        if count == 1:
+            product *= num
+    return product
+
+nfe:  51
+avg nfe:  38.333333333333336
+====================
+
+Generating...:   8%|▊         | 15/200 [00:23<04:11,  1.36s/it]====================
+answer:  def check_k_elements(tuples, k):
+    if len(tuples) != k:
+        return False
+    for t in tuples:
+        if len(t) != k:
+            return False
+    return True
+nfe:  34
+avg nfe:  38.0625
+====================
+
+Generating...:   8%|▊         | 16/200 [00:24<04:05,  1.34s/it]====================
+answer:  def remove(lst):
+    return [re.sub(r'\d', '', s) for s in lst]
+
+nfe:  34
+avg nfe:  37.8235294117647
+====================
+
+Generating...:   8%|▊         | 17/200 [00:25<04:00,  1.32s/it]====================
+answer:  import math
+def binomial_Coeff(n, k):
+    result = 1
+    for i in range(k):
+        result *= n
+    return result
+
+nfe:  42
+avg nfe:  38.05555555555556
+====================
+
+Generating...:   9%|▉         | 18/200 [00:27<04:08,  1.36s/it]====================
+answer:  from collections import Counter
+def get_Odd_Occurrence(arr, n):
+    count = Counter(arr)
+    i = 0
+    for i in range(n):
+        if count[arr[i]] % 2 != 0:
+            return arr[i]
+    return None
+
+nfe:  46
+avg nfe:  38.473684210526315
+====================
+
+Generating...:  10%|▉         | 19/200 [00:28<04:20,  1.44s/it]====================
+answer:  def count_Substring_With_Equal_Ends(s):
+    n = len(s)
+    count = 0
+    for i in range(n):
+        if s[i] == s[n-1]:
+            count += 1
+    return count
+
+nfe:  40
+avg nfe:  38.55
+====================
+
+Generating...:  10%|█         | 20/200 [00:30<04:18,  1.44s/it]====================
+answer:  import heapq as hq
+from collections import Counter
+def func(lists, k):
+    freq_list = []
+    for lst in lists:
+        freq_dict = Counter(lst)
+        freq_list.extend(freq_dict.values())
+    hq.merge(freq_list)
+    return hq.nlargest(k, freq_list)
+
+nfe:  68
+avg nfe:  39.95238095238095
+====================
+
+Generating...:  10%|█         | 21/200 [00:32<05:04,  1.70s/it]====================
+answer:  import math
+def max_Prime_Factors(n):
+    if n <= 1:
+        return None
+    if n == 2:
+        return 2
+    while n % 2 == 0:
+        n = n // 2
+    if n == 2:
+        return 2
+    for i in range(3, int(math.sqrt(n)) + 1, 2):
+        while n % i == 0:
+            n = n // i
+    if n > 2:
+        return n
+
+nfe:  69
+avg nfe:  41.27272727272727
+====================
+
+Generating...:  11%|█         | 22/200 [00:34<05:31,  1.86s/it]====================
+answer:  def decimal_To_Binary(n):
+    if n == 0:
+        return "0"
+    binary = ""
+    while n > 0:
+        binary = str(n % 2) + binary
+        n = n // 2
+    return binary
+
+nfe:  33
+avg nfe:  40.91304347826087
+====================
+
+Generating...:  12%|█▏        | 23/200 [00:36<04:55,  1.67s/it]====================
+answer:  def find_missing(arr, n):
+    length = len(arr)
+    expected = list(range(1, n + 1))
+    actual = set(arr)
+    return expected - actual
+
+nfe:  52
+avg nfe:  41.375
+====================
+
+Generating...:  12%|█▏        | 24/200 [00:37<04:59,  1.70s/it]====================
+answer:  def find_rect_num(n):
+    return n*(n+1)
+nfe:  29
+avg nfe:  40.88
+====================
+
+Generating...:  12%|█▎        | 25/200 [00:38<04:26,  1.53s/it]====================
+answer:  def find_Nth_Digit(a, b, n):
+    frac = a / b
+    s = str(frac)
+    return s[n-1]
+nfe:  41
+avg nfe:  40.88461538461539
+====================
+
+Generating...:  13%|█▎        | 26/200 [00:40<04:22,  1.51s/it]====================
+answer:  def sort_mixed_list(mixed_list):
+    sorted_list = sorted(mixed_list, key=lambda x: (type(x) == int, x))
+    return sorted_list
+
+nfe:  35
+avg nfe:  40.666666666666664
+====================
+
+Generating...:  14%|█▎        | 27/200 [00:41<04:11,  1.45s/it]====================
+answer:  def div_even_odd(nums):
+    if len(nums) == 0:
+        return 0
+    first_even = first_odd = None
+    for num in nums:
+        if first_even is None and num % 2 == 0:
+            first_even = num
+        if first_odd is None and num % 2 != 0:
+            first_odd = num
+    return first_even / first_odd
+
+nfe:  63
+avg nfe:  41.464285714285715
+====================
+
+Generating...:  14%|█▍        | 28/200 [00:43<04:43,  1.65s/it]====================
+answer:  def rearange_string(s):
+    n = len(s)
+    if n == 1:
+        return s
+    if n == 2:
+        return s[0] + s[1]
+    stack = []
+    result = []
+    for i in range(n):
+        if stack and stack[-1] == s[i]:
+            stack.pop()
+        if stack:
+            result.append(stack.pop())
+        else:
+            stack.append(s[i])
+    while stack:
+        result.append(stack.pop())
+    return ''.join(result)
+
+nfe:  91
+avg nfe:  43.172413793103445
+====================
+
+Generating...:  14%|█▍        | 29/200 [00:46<05:44,  2.02s/it]====================
+answer:  from collections import Counter
+def freq_element(lst):
+    flat_list = []
+    for sublist in lst:
+        for item in sublist:
+            flat_list.append(item)
+    return Counter(flat_list)
+
+nfe:  32
+avg nfe:  42.8
+====================
+
+Generating...:  15%|█▌        | 30/200 [00:48<05:06,  1.80s/it]====================
+answer:  def filter_evennumbers(numbers):
+    return list(filter(lambda x: x%2==0, numbers))
+nfe:  28
+avg nfe:  42.32258064516129
+====================
+
+Generating...:  16%|█▌        | 31/200 [00:49<04:29,  1.59s/it]====================
+answer:  def find_Sum(arr, n):
+    sum = 0
+    for i in range(n):
+        count = arr[i]
+        sum += i * count
+    return sum
+
+nfe:  45
+avg nfe:  42.40625
+====================
+
+Generating...:  16%|█▌        | 32/200 [00:50<04:27,  1.59s/it]====================
+answer:  import re
+def text_match(text):
+    pattern = r'([a-z]+)_([a-z]+)'
+    match = re.search(pattern, text)
+    if match:
+        return f'Found a match: {match.group(1)} {match.group(2)}!'
+    return 'Not matched!'
+
+nfe:  50
+avg nfe:  42.63636363636363
+====================
+
+Generating...:  16%|█▋        | 33/200 [00:52<04:32,  1.63s/it]====================
+answer:  def text_match_string(text):
+    if text.startswith("python"):
+        return "Found a match!"
+    else:
+        return "Not matched!"
+
+nfe:  29
+avg nfe:  42.23529411764706
+====================
+
+Generating...:  17%|█▋        | 34/200 [00:53<04:05,  1.48s/it]====================
+answer:  import math
+def get_gcd(arr):
+    gcd = arr[0]
+    for num in arr[1:]:
+        gcd = math.gcd(gcd, num)
+    return gcd
+
+nfe:  26
+avg nfe:  41.77142857142857
+====================
+
+Generating...:  18%|█▊        | 35/200 [00:54<03:42,  1.35s/it]====================
+answer:  def test_distinct(lst):
+    lst = set(lst)
+    return len(lst) == len(lst)
+
+nfe:  31
+avg nfe:  41.47222222222222
+====================
+
+Generating...:  18%|█▊        | 36/200 [00:55<03:32,  1.30s/it]====================
+answer:  def compute_Last_Digit(a, b):
+    fact = 1
+    for i in range(1, a + 1):
+        fact *= i
+    fact_b = 1
+    for i in range(1, b + 1):
+        fact_b *= i
+    return fact % 10
+
+nfe:  48
+avg nfe:  41.648648648648646
+====================
+
+Generating...:  18%|█▊        | 37/200 [00:57<03:49,  1.41s/it]====================
+answer:  def odd_bit_set_number(n):
+    result = 0
+    for i in range(1, n + 1, 2):
+        result |= i
+    return result
+
+nfe:  38
+avg nfe:  41.55263157894737
+====================
+
+Generating...:  19%|█▉        | 38/200 [00:58<03:45,  1.39s/it]====================
+answer:  def specified_element(lst, index):
+    result = []
+    for row in lst:
+        if index == 0:
+            result.append(row[0])
+        else:
+            result.append(row[index])
+    return result
+
+nfe:  37
+avg nfe:  41.43589743589744
+====================
+
+Generating...:  20%|█▉        | 39/200 [01:00<03:43,  1.39s/it]====================
+answer:  def min_length_list(lst):
+    return min(lst, key=lambda x: len(x))
+
+nfe:  26
+avg nfe:  41.05
+====================
+
+Generating...:  20%|██        | 40/200 [01:01<03:26,  1.29s/it]====================
+answer:  def check_equilateral(a, b, c):
+    if a == b and b == c and a == c:
+        return True
+    else:
+        return False
+nfe:  31
+avg nfe:  40.80487804878049
+====================
+
+Generating...:  20%|██        | 41/200 [01:02<03:19,  1.25s/it]====================
+answer:  def parallelogram_area(base, height):
+    return base * height
+
+nfe:  13
+avg nfe:  40.142857142857146
+====================
+
+Generating...:  21%|██        | 42/200 [01:03<02:50,  1.08s/it]====================
+answer:  def check_Equality(s):
+    if s[0] == s[-1]:
+        return "Equal"
+    else:
+        return "Not Equal"
+
+nfe:  21
+avg nfe:  39.69767441860465
+====================
+
+Generating...:  22%|██▏       | 43/200 [01:03<02:40,  1.02s/it]====================
+answer:  def counting_sort(arr):
+    n = len(arr)
+    count = [0] * (n + 1)
+    count[0] = 0
+    for i in range(1, n + 1):
+        count[i] += count[i - 1]
+    output = [0] * n
+    for i in range(n):
+        output[count[i] - 1] = arr[i]
+    return output
+
+nfe:  78
+avg nfe:  40.56818181818182
+====================
+
+Generating...:  22%|██▏       | 44/200 [01:06<03:50,  1.48s/it]====================
+answer:  def tn_gp(a, r, n):
+    return a * r**n
+nfe:  34
+avg nfe:  40.422222222222224
+====================
+
+Generating...:  22%|██▎       | 45/200 [01:07<03:38,  1.41s/it]====================
+answer:  def check(num):
+    num = str(num)
+    reversed_num = int(num[::-1])
+    return num == reversed_num - 1
+
+nfe:  35
+avg nfe:  40.30434782608695
+====================
+
+Generating...:  23%|██▎       | 46/200 [01:09<03:31,  1.37s/it]====================
+answer:  def find_Max_Num(arr, n):
+    length = len(arr)
+    if length < n:
+        return 0
+    arr = []
+    for i in range(n):
+        arr.append(arr[i])
+    arr.sort(reverse=True)
+    num = ''
+    for i in range(n):
+        num = num + str(arr[i])
+    return int(num)
+
+nfe:  74
+avg nfe:  41.02127659574468
+====================
+
+Generating...:  24%|██▎       | 47/200 [01:11<04:17,  1.68s/it]====================
+answer:  def opposite_Signs(num1, num2):
+    return (num1 > 0 and num2 < 0) or (num1 < 0 and num2 > 0)
+
+nfe:  25
+avg nfe:  40.6875
+====================
+
+Generating...:  24%|██▍       | 48/200 [01:12<03:44,  1.48s/it]====================
+answer:  def is_octagonal(n):
+    return 3*n**2 - n
+nfe:  33
+avg nfe:  40.53061224489796
+====================
+
+Generating...:  24%|██▍       | 49/200 [01:13<03:32,  1.41s/it]====================
+answer:  def max_len_sub(arr, k):
+    count = 0
+    start = 0
+    end = 0
+    max_len = 0
+    for i in range(len(arr)):
+        if arr[i] - arr[start] <= k:
+            count += 1
+            start += 1
+        else:
+            count = 1
+            start += 1
+        end = i
+        max_len = max(max_len, end - start + 1)
+    return max_len 
+
+nfe:  91
+avg nfe:  41.54
+====================
+
+Generating...:  25%|██▌       | 50/200 [01:16<04:37,  1.85s/it]====================
+answer:  def count_Substrings(s, n):
+    count = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            if sum(int(digit) for digit in s[i:j]) == len(s[i:j]):
+                count += 1
+    return count
+
+nfe:  47
+avg nfe:  41.64705882352941
+====================
+
+Generating...:  26%|██▌       | 51/200 [01:18<04:26,  1.79s/it]====================
+answer:  def smallest_num(nums):
+    min_num = None
+    for num in nums:
+        if num < min_num:
+            min_num = num
+    return min_num
+
+nfe:  24
+avg nfe:  41.30769230769231
+====================
+
+Generating...:  26%|██▌       | 52/200 [01:19<03:48,  1.55s/it]====================
+answer:  def max_difference(tuples_list):
+    max_diff = 0
+    for pair in tuples_list:
+        diff = pair[1] - pair[0]
+        if diff > max_diff:
+            max_diff = diff
+    return max_diff
+
+nfe:  35
+avg nfe:  41.18867924528302
+====================
+
+Generating...:  26%|██▋       | 53/200 [01:20<03:36,  1.47s/it]====================
+answer:  def subject_marks(marks):
+    return sorted(marks, key=lambda x: x[1])
+
+nfe:  29
+avg nfe:  40.96296296296296
+====================
+
+Generating...:  27%|██▋       | 54/200 [01:21<03:21,  1.38s/it]====================
+answer:  def recursive_list_sum(lst):
+    total = 0
+    for item in lst:
+        total += recursive_list_sum(item)
+    return total
+
+nfe:  26
+avg nfe:  40.69090909090909
+====================
+
+Generating...:  28%|██▊       | 55/200 [01:22<03:05,  1.28s/it]====================
+answer:  def pos_count(nums):
+    count = 0
+    for num in nums:
+        if num > 0:
+            count += 1
+    return count
+
+nfe:  22
+avg nfe:  40.357142857142854
+====================
+
+Generating...:  28%|██▊       | 56/200 [01:23<02:48,  1.17s/it]====================
+answer:  def bell_number(n):
+    bell = [0] * (n + 1)
+    bell[0] = 1
+    for i in range(1, n + 1):
+        bell[i] = bell[i - 1] + bell[i - 2]
+    return bell[n]
+
+nfe:  40
+avg nfe:  40.35087719298246
+====================
+
+Generating...:  28%|██▊       | 57/200 [01:25<02:59,  1.25s/it]====================
+answer:  def is_Monotonic(arr):
+    if len(arr) == 1:
+        return True
+    if arr[0] < arr[1]:
+        return False
+    for i in range(1, len(arr)):
+        if arr[i] < arr[i-1]:
+            return False
+    return True
+
+nfe:  46
+avg nfe:  40.44827586206897
+====================
+
+Generating...:  29%|██▉       | 58/200 [01:26<03:12,  1.36s/it]====================
+answer:  def is_sublist(lst, sublist):
+    return sublist in lst
+
+nfe:  21
+avg nfe:  40.11864406779661
+====================
+
+Generating...:  30%|██▉       | 59/200 [01:27<02:52,  1.22s/it]====================
+answer:  def get_equal(tuples, length):
+    if len(tuples) == length:
+        return 'All tuples have same length'
+    else:
+        return 'All tuples do not have same length'
+
+nfe:  29
+avg nfe:  39.93333333333333
+====================
+
+Generating...:  30%|███       | 60/200 [01:28<02:47,  1.20s/it]====================
+answer:  def comb_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    result = []
+    i = 0
+    j = 0
+    while i < len(arr):
+        if arr[i] < arr[j]:
+            result.append(arr[i])
+            i += 1
+        else:
+            result.append(arr[j])
+            j += 1
+    return result
+
+nfe:  69
+avg nfe:  40.40983606557377
+====================
+
+Generating...:  30%|███       | 61/200 [01:31<03:32,  1.53s/it]====================
+answer:  def dif_Square(n):
+    if n % 4 == 0:
+        return False
+    x = n // 4
+    y = n - x
+    if x ** 2 - y ** 2 == n:
+        return True
+    return False
+
+nfe:  48
+avg nfe:  40.53225806451613
+====================
+
+Generating...:  31%|███       | 62/200 [01:32<03:38,  1.58s/it]====================
+answer:  import re
+def multiple_split(s):
+    pattern = re.compile(r'(\n|\*|\*)')
+    result = pattern.split(s)
+    return result
+
+nfe:  37
+avg nfe:  40.476190476190474
+====================
+
+Generating...:  32%|███▏      | 63/200 [01:34<03:29,  1.53s/it]====================
+answer:  def is_samepatterns(words, patterns):
+    if len(words) != len(patterns):
+        return False
+    for i in range(len(words)):
+        if words[i] != patterns[i]:
+            return False
+    return True
+
+nfe:  32
+avg nfe:  40.34375
+====================
+
+Generating...:  32%|███▏      | 64/200 [01:35<03:16,  1.45s/it]====================
+answer:  def find_tuples(tuples, k):
+    result = []
+    for t in tuples:
+        if all(x % k == 0 for x in t):
+            result.append(t)
+    return result
+
+nfe:  31
+avg nfe:  40.2
+====================
+
+Generating...:  32%|███▎      | 65/200 [01:36<03:07,  1.39s/it]====================
+answer:  def count_Squares(width, height):
+    count = 0
+    for i in range(1, width + 1):
+        for j in range(1, height + 1):
+            count += i * j
+    return count
+
+nfe:  39
+avg nfe:  40.18181818181818
+====================
+
+Generating...:  33%|███▎      | 66/200 [01:38<03:07,  1.40s/it]====================
+answer:  def is_Diff(n):
+    num = str(n)
+    even_sum = 0
+    odd_sum = 0
+    for i in num:
+        if i.isdigit():
+            if i % 2 == 0:
+                even_sum += int(i)
+            else:
+                odd_sum += int(i)
+    return abs(even_sum - odd_sum) == 0
+
+nfe:  50
+avg nfe:  40.32835820895522
+====================
+
+Generating...:  34%|███▎      | 67/200 [01:39<03:20,  1.51s/it]====================
+answer:  def count_With_Odd_SetBits(n):
+    count = 0
+    for i in range(1, n + 1):
+        if (i & (i - 1)) != 0:
+            count += 1
+    return count
+
+nfe:  34
+avg nfe:  40.23529411764706
+====================
+
+Generating...:  34%|███▍      | 68/200 [01:41<03:11,  1.45s/it]====================
+answer:  def word_len(word):
+    return len(word) % 2 != 0
+
+nfe:  20
+avg nfe:  39.94202898550725
+====================
+
+Generating...:  34%|███▍      | 69/200 [01:42<02:47,  1.28s/it]====================
+answer:  def tetrahedral_number(n):
+    return
+nfe:  34
+avg nfe:  39.857142857142854
+====================
+
+Generating...:  35%|███▌      | 70/200 [01:43<02:46,  1.28s/it]====================
+answer:  def zip_tuples(tup1, tup2):
+    return list(zip(tup1, tup2))
+
+nfe:  24
+avg nfe:  39.63380281690141
+====================
+
+Generating...:  36%|███▌      | 71/200 [01:44<02:35,  1.21s/it]====================
+answer:  import math
+def volume_sphere(radius):
+    return (4/3) * math.pi * (radius**3)
+    #assert volume_sphere(10) == 4188.790204786391
+    #assert volume_sphere(25) == 65449.84694978735
+    #assert volume_sphere(20) == 33510.32163829113
+
+nfe:  68
+avg nfe:  40.02777777777778
+====================
+
+Generating...:  36%|███▌      | 72/200 [01:46<03:16,  1.54s/it]====================
+answer:  def get_Char(s):
+    result = ""
+    for char in s:
+        result += char
+    return result[0]
+
+nfe:  30
+avg nfe:  39.89041095890411
+====================
+
+Generating...:  36%|███▋      | 73/200 [01:47<03:01,  1.43s/it]====================
+answer:  def sequence(n):
+    if n == 1:
+        return 1
+    elif n == 2:
+        return 1
+    elif n == 3:
+        return 2
+    else:
+        return sequence(n-1) + sequence(n-2)
+
+nfe:  39
+avg nfe:  39.87837837837838
+====================
+
+Generating...:  37%|███▋      | 74/200 [01:49<03:00,  1.43s/it]====================
+answer:  import math
+def surfacearea_sphere(radius):
+    return 4 * math.pi * radius ** 2
+
+nfe:  21
+avg nfe:  39.626666666666665
+====================
+
+Generating...:  38%|███▊      | 75/200 [01:50<02:39,  1.28s/it]====================
+answer:  def centered_hexagonal_number(n):
+    return (n**2)-n
+nfe:  34
+avg nfe:  39.55263157894737
+====================
+
+Generating...:  38%|███▊      | 76/200 [01:51<02:39,  1.29s/it]====================
+answer:  def merge_dictionaries_three(dict1, dict2, dict3):
+    merged_dict = {}
+    merged_dict.update(dict1)
+    merged_dict.update(dict2)
+    merged_dict.update(dict3)
+    return merged_dict
+
+nfe:  27
+avg nfe:  39.38961038961039
+====================
+
+Generating...:  38%|███▊      | 77/200 [01:52<02:34,  1.25s/it]====================
+answer:  from collections import Counter
+def freq_count(lst):
+    count = Counter(lst)
+    return dict(count)
+    #assert freq_count([10,10,10,10,20,20,20,20,40,40,50,50,30])==({10: 4, 20: 4, 40: 2, 50: 2, 30: 1})
+    #assert freq_count([1,2,3,4,3,2,4,1,3,1,4])==({1:3, 2:2,3:3,4:3})
+    #assert freq_count([5,6,7,4,9,10,4,5,6,7,9,5])==({10:1,5:3,6:2,7:2,4:2,9:2})
+    #assert freq_count([])=={}
+
+nfe:  59
+avg nfe:  39.64102564102564
+====================
+
+Generating...:  39%|███▉      | 78/200 [01:54<03:03,  1.50s/it]====================
+answer:  def closest_num(n):
+    if n == 0:
+        return 0
+    elif n == 1:
+        return 1
+    elif n == 2:
+        return 2
+    elif n == 3:
+        return 3
+    elif n == 4:
+        return 4
+    elif n == 5:
+        return 5
+    elif n == 6:
+        return 6
+    elif n == 7:
+        return 7
+    elif n == 8:
+        return 8
+    elif n == 9:
+        return 9
+    elif n == 10:
+        return 10
+    elif n == 11:
+        return 10
+    elif n == 12:
+        return 11
+    elif n == 13:
+        return 12
+    elif n == 14:
+        return 13
+    else:
+        return n
+
+nfe:  74
+avg nfe:  40.075949367088604
+====================
+
+Generating...:  40%|███▉      | 79/200 [01:57<03:37,  1.80s/it]====================
+answer:  def len_log(words):
+    max_len = 0
+    for word in words:
+        if len(word) > max_len:
+            max_len = len(word)
+    return max_len
+
+nfe:  22
+avg nfe:  39.85
+====================
+
+Generating...:  40%|████      | 80/200 [01:58<03:04,  1.54s/it]====================
+answer:  def find_substring(lst, substring):
+    for s in lst:
+        if substring in s:
+            return True
+    return False
+
+nfe:  25
+avg nfe:  39.666666666666664
+====================
+
+Generating...:  40%|████      | 81/200 [01:59<02:45,  1.39s/it]====================
+answer:  def is_undulating(num):
+    n = len(num)
+    stack = []
+    for i in range(n):
+        if stack and num[i] == stack[-1]:
+            stack.pop()
+        else:
+            stack.append(num[i])
+    return stack
+
+nfe:  56
+avg nfe:  39.86585365853659
+====================
+
+Generating...:  41%|████      | 82/200 [02:01<03:03,  1.56s/it]====================
+answer:  def power(a, b):
+    return a ** b
+
+nfe:  14
+avg nfe:  39.55421686746988
+====================
+
+Generating...:  42%|████▏     | 83/200 [02:01<02:31,  1.30s/it]====================
+answer:  def index_minimum(tuples):
+    result = min(tuples, key=lambda x: x[1])
+    return result[0]
+
+nfe:  32
+avg nfe:  39.464285714285715
+====================
+
+Generating...:  42%|████▏     | 84/200 [02:03<02:28,  1.28s/it]====================
+answer:  def Find_Min_Length(lst):
+    min_length = float('inf')
+    for sublist in lst:
+        if len(sublist) < min_length:
+            min_length = len(sublist)
+    return min_length
+
+nfe:  27
+avg nfe:  39.31764705882353
+====================
+
+Generating...:  42%|████▎     | 85/200 [02:04<02:21,  1.23s/it]====================
+answer:  def divisor(n):
+    count = 0
+    for i in range(1, n+1):
+        if n % i == 0:
+            count += 1
+    return count
+
+nfe:  22
+avg nfe:  39.116279069767444
+====================
+
+Generating...:  43%|████▎     | 86/200 [02:05<02:09,  1.14s/it]====================
+answer:  from collections import Counter
+def frequency_lists(lst):
+    count = Counter()
+    for sublist in lst:
+        for item in sublist:
+            count[item] += 1
+    return dict(count)
+
+nfe:  32
+avg nfe:  39.03448275862069
+====================
+
+Generating...:  44%|████▎     | 87/200 [02:06<02:14,  1.19s/it]====================
+answer:  def multiply_num(nums):
+    product = 1
+    for num in nums:
+        product *= num
+    return product / len(nums)
+
+nfe:  26
+avg nfe:  38.88636363636363
+====================
+
+Generating...:  44%|████▍     | 88/200 [02:07<02:09,  1.16s/it]====================
+answer:  def decimal_to_binary(n):
+    if n == 0:
+        return '0'
+    binary = ''
+    while n > 0:
+        binary = str(n % 2) + binary
+        n = n // 2
+    return binary
+
+nfe:  31
+avg nfe:  38.79775280898876
+====================
+
+Generating...:  44%|████▍     | 89/200 [02:08<02:09,  1.17s/it]====================
+answer:  def next_smallest_palindrome(n):
+    s = str(n)
+    rev = s[::-1]
+    if s == rev:
+        return n
+    else:
+        s = int(s)
+        rev = int(rev)
+        while s < rev:
+            s += 1
+            s = str(s)
+            rev = s[::-1]
+            if s == rev:
+                return s
+            else:
+                s += 1
+                s = str(s)
+                rev = s[::-1]
+                if s == rev:
+                    return s
+                else:
+                    s += 1
+                    s = str(s)
+                    rev = s[::-1]
+                    if s == rev:
+                        return s
+                    else:
+                        s += 1
+                        s = str(s)
+                        rev = s[::-1]
+                        if s == rev:
+                            return s
+                        else:
+                            return s + 1
+
+nfe:  100
+avg nfe:  39.477777777777774
+====================
+
+Generating...:  45%|████▌     | 90/200 [02:11<03:17,  1.80s/it]====================
+answer:  def kth_element(arr, n, k):
+    if k < 1 or k > n:
+        raise ValueError("k is out of bounds")
+    return arr[k-1]
+
+nfe:  39
+avg nfe:  39.472527472527474
+====================
+
+Generating...:  46%|████▌     | 91/200 [02:13<03:04,  1.69s/it]====================
+answer:  def snake_to_camel(snake_str):
+    words = snake_str.split('_')
+    camel_str = words[0].capitalize()
+    for word in words[1:]:
+        camel_str += word.capitalize()
+    return camel_str
+
+nfe:  132
+avg nfe:  40.47826086956522
+====================
+
+Generating...:  46%|████▌     | 92/200 [02:17<04:23,  2.44s/it]====================
+answer:  def eulerian_num(n, m):
+    return (n**m - 1) * (n**m + 1) // 2
+
+nfe:  33
+avg nfe:  40.39784946236559
+====================
+
+Generating...:  46%|████▋     | 93/200 [02:18<03:43,  2.09s/it]====================
+answer:  def sort_sublists(list_of_lists):
+    return [list(sorted(sub, key=str.lower)) for sub in list_of_lists]
+
+nfe:  31
+avg nfe:  40.297872340425535
+====================
+
+Generating...:  47%|████▋     | 94/200 [02:20<03:14,  1.83s/it]====================
+answer:  def count(lst):
+    return sum(lst)
+nfe:  28
+avg nfe:  40.16842105263158
+====================
+
+Generating...:  48%|████▊     | 95/200 [02:21<02:50,  1.62s/it]====================
+answer:  def add_lists(lst, tup):
+    result = tup + lst
+    return result
+
+nfe:  29
+avg nfe:  40.052083333333336
+====================
+
+Generating...:  48%|████▊     | 96/200 [02:22<02:34,  1.48s/it]====================
+answer:  def count_Hexadecimal(start, end):
+    count = 0
+    for i in range(start, end + 1):
+        if hex(i)[2] == '0x':
+            count += 1
+    return count
+nfe:  39
+avg nfe:  40.04123711340206
+====================
+
+Generating...:  48%|████▊     | 97/200 [02:23<02:31,  1.47s/it]====================
+answer:  import heapq as hq
+def merge_sorted_list(*lists):
+    merged_list = []
+    for lst in lists:
+        hq.heapify(lst)
+    while lst:
+        merged_list.append(hq.heappop(lst))
+    return merged_list
+
+nfe:  48
+avg nfe:  40.12244897959184
+====================
+
+Generating...:  49%|████▉     | 98/200 [02:25<02:41,  1.58s/it]====================
+answer:  def odd_Equivalent(s, n):
+    count = 0
+    for i in range(n):
+        left = s[i:]
+        right = s[:i]
+        if left.count('1') + right.count('1') % 2 == 1:
+            count += 1
+    return count
+
+nfe:  52
+avg nfe:  40.24242424242424
+====================
+
+Generating...:  50%|████▉     | 99/200 [02:27<02:47,  1.66s/it]====================
+answer:  def extract_missing(ranges, start_range, end_range):
+    missing_ranges = []
+    for r in ranges:
+        start = r[0]
+        end = r[1]
+        if start < start_range:
+            missing_ranges.append((start_range, start))
+        if end > end_range:
+            missing_ranges.append((end, end_range))
+    return missing_ranges
+
+nfe:  85
+avg nfe:  40.69
+====================
+
+Generating...:  50%|█████     | 100/200 [02:30<03:22,  2.02s/it]====================
+answer:  def common_in_nested_lists(nested_lists):
+    common_elements = set()
+    for sublist in nested_lists:
+        for item in sublist:
+            common_elements.add(item)
+    return list(common_elements)
+
+nfe:  30
+avg nfe:  40.584158415841586
+====================
+
+Generating...:  50%|█████     | 101/200 [02:31<02:56,  1.78s/it]====================
+answer:  import math
+def perimeter(radius, height):
+    return 2 * math.pi * radius
+nfe:  30
+avg nfe:  40.48039215686274
+====================
+
+Generating...:  51%|█████     | 102/200 [02:32<02:36,  1.60s/it]====================
+answer:  def check_integer(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+nfe:  20
+avg nfe:  40.28155339805825
+====================
+
+Generating...:  52%|█████▏    | 103/200 [02:33<02:14,  1.38s/it]====================
+answer:  from collections import defaultdict
+def assign_freq(tuples):
+    freq = defaultdict(int)
+    for tup in tuples:
+        freq[tup] += 1
+    return list(freq.items())
+
+nfe:  38
+avg nfe:  40.25961538461539
+====================
+
+Generating...:  52%|█████▏    | 104/200 [02:35<02:16,  1.42s/it]====================
+answer:  def empty_dit(dicts):
+    return all(d for d in dicts)
+nfe:  31
+avg nfe:  40.17142857142857
+====================
+
+Generating...:  52%|█████▎    | 105/200 [02:36<02:08,  1.35s/it]====================
+answer:  def tuple_to_int(tup):
+    return int(''.join(map(str, tup)))
+
+nfe:  24
+avg nfe:  40.0188679245283
+====================
+
+Generating...:  53%|█████▎    | 106/200 [02:37<01:57,  1.25s/it]====================
+answer:  def list_to_float(lst):
+    result = []
+    for item in lst:
+        try:
+            num = float(item)
+            result.append(item)
+        except ValueError:
+            pass
+    return result
+
+nfe:  45
+avg nfe:  40.06542056074766
+====================
+
+Generating...:  54%|█████▎    | 107/200 [02:39<02:09,  1.39s/it]====================
+answer:  def string_to_list(s):
+    return s.split()
+
+nfe:  21
+avg nfe:  39.888888888888886
+====================
+
+Generating...:  54%|█████▍    | 108/200 [02:40<01:54,  1.25s/it]====================
+answer:  def search(arr, n):
+    left = 0
+    right = n - 1
+    while left < right:
+        mid = (left + right) // 2
+        if arr[mid] == arr[mid + 1]:
+            return mid
+        elif arr[mid] > arr[mid + 1]:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return left
+
+nfe:  63
+avg nfe:  40.10091743119266
+====================
+
+Generating...:  55%|█████▍    | 109/200 [02:42<02:18,  1.52s/it]====================
+answer:  def max_product_tuple(tuples):
+    max_product = 0
+    for t in tuples:
+        max_product = max(max_product, t[0]*t[1])
+    return max_product
+
+nfe:  34
+avg nfe:  40.04545454545455
+====================
+
+Generating...:  55%|█████▌    | 110/200 [02:43<02:11,  1.46s/it]====================
+answer:  def check_triplet(arr, a, b, c):
+    n = len(arr)
+    for i in range(n):
+        for j in range(i+1, n):
+            for k in range(j+1, n):
+                if arr[i] + arr[j] + arr[k] == a + b + c:
+                    return True
+    return False
+
+nfe:  53
+avg nfe:  40.16216216216216
+====================
+
+Generating...:  56%|█████▌    | 111/200 [02:45<02:21,  1.59s/it]====================
+answer:  def smartNumber(n):
+    if n == 1:
+        return 30
+    elif n == 2:
+        return 31
+    elif n == 3:
+        return 32
+    elif n == 4:
+        return 33
+    elif n == 5:
+        return 34
+    elif n == 6:
+        return 35
+    elif n == 7:
+        return 36
+    elif n == 8:
+        return 37
+    elif n == 9:
+        return 38
+    elif n == 10:
+        return 39
+    elif n == 11:
+        return 40
+    elif n == 12:
+        return 41
+    elif n == 13:
+        return 42
+    elif n == 14:
+        return 43
+    elif n == 15:
+        return 44
+
+nfe:  66
+avg nfe:  40.392857142857146
+====================
+
+Generating...:  56%|█████▌    | 112/200 [02:47<02:36,  1.78s/it]====================
+answer:  def amicable_numbers_sum(limit):
+    def is_amicable(n):
+        divisors = [i for i in range(1, n + 1) if n % i == 0]
+        return sum(divisors) == n
+
+    amicable_sum = 0
+    for i in range(1, limit + 1):
+        if is_amicable(i):
+            amicable_sum += i
+
+    return amicable_sum
+
+# Test cases
+print(amicable_numbers_sum(999))  # Output: 504
+print(amicable_numbers_sum(9999)) # Output: 31626
+print(amicable_numbers_sum(99))   # Output: 0
+
+nfe:  119
+avg nfe:  41.08849557522124
+====================
+
+Generating...:  56%|█████▋    | 113/200 [02:51<03:28,  2.39s/it]====================
+answer:  import math
+def angle_complex(c):
+    return math.phase(c)
+
+nfe:  27
+avg nfe:  40.96491228070175
+====================
+
+Generating...:  57%|█████▋    | 114/200 [02:52<02:52,  2.00s/it]====================
+answer:  def find_length(s, n):
+    count = 0
+    left = 0
+    right = 0
+    for i in range(n):
+        if s[i] == '1':
+            count += 1
+        else:
+            count -= 1
+        if count < 0:
+            count = 0
+        if count == 0:
+            left = i
+            right = i
+            count = 0
+    if count == 0:
+        right = n
+    return right - left
+nfe:  107
+avg nfe:  41.53913043478261
+====================
+
+Generating...:  57%|█████▊    | 115/200 [02:55<03:27,  2.44s/it]====================
+answer:  def sum_common_divisors(a, b):
+    common_divisors = 0
+    for i in range(1, min(a, b) + 1):
+        if a % i == 0 and b % i == 0:
+            common_divisors += i
+    return common_divisors
+
+nfe:  40
+avg nfe:  41.525862068965516
+====================
+
+Generating...:  58%|█████▊    | 116/200 [02:57<03:00,  2.15s/it]====================
+answer:  def multiply_int(a, b):
+    result = 0
+    for _ in range(b):
+        result += a
+    return result
+
+nfe:  27
+avg nfe:  41.401709401709404
+====================
+
+Generating...:  58%|█████▊    | 117/200 [02:58<02:32,  1.84s/it]====================
+answer:  def long_words(n, text):
+    words = text.split()
+    long_words = [word for word in words if len(word) > n]
+    return long_words
+
+nfe:  26
+avg nfe:  41.271186440677965
+====================
+
+Generating...:  59%|█████▉    | 118/200 [02:59<02:11,  1.60s/it]====================
+answer:  def magic_square_test(matrix):
+    n = len(matrix)
+    if n == 0:
+        return False
+    total = 0
+    for i in range(n):
+        for j in range(n):
+            total += matrix[i][j]
+    return True
+nfe:  51
+avg nfe:  41.35294117647059
+====================
+
+Generating...:  60%|█████▉    | 119/200 [03:01<02:15,  1.67s/it]====================
+answer:  from collections import Counter
+def max_occurrences(nums):
+    count = Counter(nums)
+    max_count = 0
+    max_item = None
+    for item, freq in count.items():
+        if freq > max_count:
+            max_count = freq
+            max_item = item
+    return max_item, max_count
+
+nfe:  40
+avg nfe:  41.34166666666667
+====================
+
+Generating...:  60%|██████    | 120/200 [03:02<02:09,  1.62s/it]====================
+answer:  def reverse_vowels(s):
+    vowels = "aeiouAEIOU"
+    result = ""
+    for char in s:
+        if char in vowels:
+            reversed_vowel = char[::-1]
+            result += reversed_vowel
+        else:
+            result += char
+    return result
+nfe:  42
+avg nfe:  41.34710743801653
+====================
+
+Generating...:  60%|██████    | 121/200 [03:04<02:05,  1.59s/it]====================
+answer:  def tup_string(tup): return ''.join(tup)
+nfe:  24
+avg nfe:  41.204918032786885
+====================
+
+Generating...:  61%|██████    | 122/200 [03:05<01:50,  1.42s/it]====================
+answer:  def sum_negativenum(nums):
+    return sum(filter(lambda x: x<0, nums))
+nfe:  28
+avg nfe:  41.09756097560975
+====================
+
+Generating...:  62%|██████▏   | 123/200 [03:06<01:42,  1.34s/it]====================
+answer:  def check_last(arr, n, p):
+    length = len(arr)
+    result = []
+    for i in range(n):
+        if p == 0:
+            result.append("ODD")
+        else:
+            result.append("EVEN")
+    return result[-1]
+
+nfe:  63
+avg nfe:  41.274193548387096
+====================
+
+Generating...:  62%|██████▏   | 124/200 [03:08<02:00,  1.58s/it]====================
+answer:  def hexagonal_num(n):
+    return
+nfe:  33
+avg nfe:  41.208
+====================
+
+Generating...:  62%|██████▎   | 125/200 [03:10<01:51,  1.49s/it]====================
+answer:  def cal_electbill(kwh):
+    return kwh * 3.75
+nfe:  32
+avg nfe:  41.13492063492063
+====================
+
+Generating...:  63%|██████▎   | 126/200 [03:11<01:44,  1.41s/it]====================
+answer:  def zero_count(arr):
+    zero_count = 0
+    for num in arr:
+        if num == 0:
+            zero_count += 1
+    return zero_count / len(arr)
+
+nfe:  31
+avg nfe:  41.05511811023622
+====================
+
+Generating...:  64%|██████▎   | 127/200 [03:12<01:39,  1.36s/it]====================
+answer:  def is_Sum_Of_Powers_Of_Two(n):
+    if n == 0:
+        return False
+    if n == 1:
+        return True
+    if n == 2:
+        return True
+    if n == 3:
+        return False
+    if n == 4:
+        return True
+    if n == 5:
+        return False
+    if n == 6:
+        return True
+    if n == 7:
+        return False
+    if n == 8:
+        return True
+    if n == 9:
+        return False
+    if n == 10:
+        return True
+    if n == 11:
+        return False
+    if n == 12:
+        return True
+    if n == 13:
+        return False
+    if n == 14:
+        return True
+    return False
+
+nfe:  77
+avg nfe:  41.3359375
+====================
+
+Generating...:  64%|██████▍   | 128/200 [03:15<02:04,  1.72s/it]====================
+answer:  import math
+def circle_circumference(radius):
+    return 2 * math.pi * radius
+
+nfe:  17
+avg nfe:  41.14728682170543
+====================
+
+Generating...:  64%|██████▍   | 129/200 [03:15<01:42,  1.45s/it]====================
+answer:  def extract_singly(tuples_list):
+    seen = set()
+    result = []
+    for tup in tuples_list:
+        for item in tup:
+            if item not in seen:
+                seen.add(item)
+                result.append(item)
+    return result
+
+nfe:  41
+avg nfe:  41.146153846153844
+====================
+
+Generating...:  65%|██████▌   | 130/200 [03:17<01:43,  1.47s/it]====================
+answer:  def pancake_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(n-i-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+    return arr
+
+nfe:  34
+avg nfe:  41.091603053435115
+====================
+
+Generating...:  66%|██████▌   | 131/200 [03:18<01:38,  1.42s/it]====================
+answer:  def count_samepair(list1,list2,list3):
+    count = 0
+    set1 = set(list1)
+    set2 = set(list2)
+    set3 = set(list3)
+    for i in set1:
+        if i in set2 and i in set3:
+            count += 1
+    return count
+nfe:  49
+avg nfe:  41.15151515151515
+====================
+
+Generating...:  66%|██████▌   | 132/200 [03:20<01:42,  1.51s/it]====================
+answer:  def find_lists(tup):
+    return len(tup)
+nfe:  29
+avg nfe:  41.06015037593985
+====================
+
+Generating...:  66%|██████▋   | 133/200 [03:21<01:33,  1.40s/it]====================
+answer:  def sum_Pairs(arr, n):
+    result = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            result += abs(arr[i] - arr[j])
+    return result
+
+nfe:  29
+avg nfe:  40.97014925373134
+====================
+
+Generating...:  67%|██████▋   | 134/200 [03:22<01:27,  1.32s/it]====================
+answer:  def max_Abs_Diff(arr, n):
+    max_diff = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            diff = abs(arr[i] - arr[j])
+            if diff > max_diff:
+                max_diff = diff
+    return max_diff
+
+nfe:  37
+avg nfe:  40.94074074074074
+====================
+
+Generating...:  68%|██████▊   | 135/200 [03:24<01:26,  1.33s/it]====================
+answer:  def ascii_value_string(s):
+    total = 0
+    for char in s:
+        total += ord(char)
+    return total
+
+nfe:  26
+avg nfe:  40.830882352941174
+====================
+
+Generating...:  68%|██████▊   | 136/200 [03:25<01:19,  1.24s/it]====================
+answer:  def max_path_sum(triangle, rows, cols):
+    dp = [[0] * cols for _ in range(rows)]
+    for i in range(rows - 2, -1, -1):
+        for j in range(cols):
+            dp[i][j] = triangle[i][j] + max(dp[i + 1][j], dp[i][j + 1])
+    return dp[0][0]
+
+nfe:  56
+avg nfe:  40.941605839416056
+====================
+
+Generating...:  68%|██████▊   | 137/200 [03:27<01:30,  1.44s/it]====================
+answer:  def sum_digits_twoparts(n):
+    s = str(n)
+    l = len(s)
+    sum1 = sum(int(d) for d in s[:l//2])
+    sum2 = sum(int(d) for d in s[l//2:])
+    return sum1 + sum2
+
+nfe:  48
+avg nfe:  40.992753623188406
+====================
+
+Generating...:  69%|██████▉   | 138/200 [03:28<01:33,  1.50s/it]====================
+answer:  def longest_subseq_with_diff_one(arr, n):
+    dp = [0] * (n + 1)
+    result = 0
+    for i in range(1, n + 1):
+        dp[i] = 1
+        for j in range(i):
+            if arr[i] - arr[j] == 1:
+                dp[i] = max(dp[i], dp[j] + 1)
+        result = max(result, dp[i])
+    return result
+
+nfe:  58
+avg nfe:  41.115107913669064
+====================
+
+Generating...:  70%|██████▉   | 139/200 [03:30<01:39,  1.64s/it]====================
+answer:  def does_Contain_B(a, b, c):
+    sequence = []
+    sequence.append(a)
+    for i in range(b):
+        sequence.append(sequence[-1] + i)
+    return c in sequence
+
+nfe:  54
+avg nfe:  41.207142857142856
+====================
+
+Generating...:  70%|███████   | 140/200 [03:32<01:41,  1.70s/it]====================
+answer:  import math
+def is_coprime(a, b):
+    return math.gcd(a, b) == 1
+
+nfe:  24
+avg nfe:  41.08510638297872
+====================
+
+Generating...:  70%|███████   | 141/200 [03:33<01:27,  1.48s/it]====================
+answer:  def merge_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    return merge(left, right)
+
+def merge(left, right):
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] < right[j]:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+    while i < len(left):
+        result.append(left[i])
+        i += 1
+    while j < len(right):
+        result.append(right[j])
+        j += 1
+    return result
+
+nfe:  57
+avg nfe:  41.19718309859155
+====================
+
+Generating...:  71%|███████   | 142/200 [03:35<01:33,  1.62s/it]====================
+answer:  import math
+def parabola_vertex(a, b, c):
+    x = -b / (2 * a)
+    y = c
+nfe:  51
+avg nfe:  41.26573426573427
+====================
+
+Generating...:  72%|███████▏  | 143/200 [03:37<01:34,  1.66s/it]====================
+answer:  def specified_element(matrix, index):
+    result = []
+    for i in range(len(matrix)):
+        result.append(matrix[i][index])
+    return result
+
+nfe:  27
+avg nfe:  41.166666666666664
+====================
+
+Generating...:  72%|███████▏  | 144/200 [03:38<01:23,  1.49s/it]====================
+answer:  def even_bit_toggle_number(n):
+    result = 0
+    for i in range(0, n.bit_length):
+        if i % 2 == 0:
+            result ^= (1 << i)
+    return result
+
+nfe:  43
+avg nfe:  41.179310344827584
+====================
+
+Generating...:  72%|███████▎  | 145/200 [03:39<01:23,  1.51s/it]====================
+answer:  def tuple_int_str(tup):
+    return tuple(map(int, tup))
+
+nfe:  23
+avg nfe:  41.054794520547944
+====================
+
+Generating...:  73%|███████▎  | 146/200 [03:40<01:13,  1.36s/it]====================
+answer:  def encode_list(lst):
+    encoded = []
+    count = 1
+    for item in lst:
+        if item == lst[-1][1]:
+            count += 1
+        else:
+            encoded.append([count, item])
+            count = 1
+    encoded.append([count, lst[-1]])
+    return encoded
+
+nfe:  44
+avg nfe:  41.074829931972786
+====================
+
+Generating...:  74%|███████▎  | 147/200 [03:42<01:16,  1.44s/it]====================
+answer:  def min_Ops(arr, n, k):
+    total = sum(arr)
+    count = len(arr)
+    result = 0
+    for i in range(n):
+        if arr[i] < total:
+            result += abs(arr[i] - total)
+        elif arr[i] > total:
+            result += abs(arr[i] - total)
+    return result
+
+nfe:  66
+avg nfe:  41.24324324324324
+====================
+
+Generating...:  74%|███████▍  | 148/200 [03:44<01:27,  1.68s/it]====================
+answer:  def month_season(month, day):
+    month = month.lower()
+    if month == 'january' or month == 'february' or month == 'march' or month == 'april' or month == 'may' or month == 'june' or month == 'july' or month == 'august' or month == 'september' or month == 'october' or month == 'november' or month == 'december':
+        if day < 20:
+            return 'winter'
+        elif day >= 20 and day <= 22:
+            return 'spring'
+    elif month == 'april' or month == 'may' or month == 'june' or month == 'july' or month == 'august' or month == 'september' or month == 'october' or month == 'november' or month == 'december':
+        if day > 22:
+            return 'autumn'
+        else:
+            return 'winter'
+    else:
+        return 'invalid month'
+
+nfe:  111
+avg nfe:  41.711409395973156
+====================
+
+Generating...:  74%|███████▍  | 149/200 [03:48<01:54,  2.25s/it]====================
+answer:  def solution(a, b, n):
+    if a == 0 and b == 0:
+        return 'No solution'
+    gcd = abs(a) // abs(b)
+    if n % gcd != 0:
+        return 'No solution'
+    x = n // gcd
+    y = -b // gcd
+    return f'x = {x}, y = {y}' 
+
+nfe:  71
+avg nfe:  41.906666666666666
+====================
+
+Generating...:  75%|███████▌  | 150/200 [03:50<01:54,  2.29s/it]====================
+answer:  def remove_elements(list1, list2):
+    new_list = [item for item in list1 if item not in list2]
+    return new_list
+
+nfe:  28
+avg nfe:  41.81456953642384
+====================
+
+Generating...:  76%|███████▌  | 151/200 [03:51<01:35,  1.95s/it]====================
+answer:  def sum_series(n):
+    sum = 0
+    for i in range(1, n+1):
+        sum += i
+    return sum
+
+nfe:  33
+avg nfe:  41.75657894736842
+====================
+
+Generating...:  76%|███████▌  | 152/200 [03:53<01:23,  1.74s/it]====================
+answer:  import math
+def area_polygon(n, s):
+    area = (n * math.sqrt(2) / 4) * (s**2)
+    return area
+
+nfe:  42
+avg nfe:  41.75816993464052
+====================
+
+Generating...:  76%|███████▋  | 153/200 [03:54<01:19,  1.68s/it]====================
+answer:  def areEquivalent(a, b):
+    sum1 = 0
+    sum2 = 0
+    for i in range(1, a + 1):
+        if a % i == 0:
+            sum1 += i
+    for i in range(1, b + 1):
+        if b % i == 0:
+            sum2 += i
+    return sum1 == sum2
+
+nfe:  39
+avg nfe:  41.74025974025974
+====================
+
+Generating...:  77%|███████▋  | 154/200 [03:56<01:13,  1.61s/it]====================
+answer:  def count_char_position(s):
+    count = 0
+    for char in s:
+        if char.isalpha():
+            if char.islower():
+                pos = ord(char) - ord('a')
+            else:
+                pos = ord(char) - ord('A') + 26
+            if pos >= 0 and pos < 26:
+                count += 1
+    return count
+
+nfe:  67
+avg nfe:  41.903225806451616
+====================
+
+Generating...:  78%|███████▊  | 155/200 [03:58<01:20,  1.80s/it]====================
+answer:  def find_even_Pair(arr, n):
+    count = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            if arr[i] ^ arr[j] % 2 == 0:
+                count += 1
+    return count
+
+nfe:  37
+avg nfe:  41.87179487179487
+====================
+
+Generating...:  78%|███████▊  | 156/200 [03:59<01:13,  1.67s/it]====================
+answer:  def next_Power_Of_2(n):
+    if n == 0:
+        return 1
+    while n & 1:
+        n += 1
+    return n
+
+nfe:  37
+avg nfe:  41.84076433121019
+====================
+
+Generating...:  78%|███████▊  | 157/200 [04:00<01:07,  1.57s/it]====================
+answer:  def frequency(arr, num):
+    count = 0
+    for i in arr:
+        if i == num:
+            count += 1
+    return count
+
+nfe:  25
+avg nfe:  41.734177215189874
+====================
+
+Generating...:  79%|███████▉  | 158/200 [04:01<00:58,  1.40s/it]====================
+answer:  import math
+def get_pell(n):
+    if n == 0:
+        return 1
+    elif n == 1:
+        return 1
+    elif n == 2:
+        return 2
+    else:
+        return 0
+
+nfe:  60
+avg nfe:  41.84905660377358
+====================
+
+Generating...:  80%|███████▉  | 159/200 [04:03<01:05,  1.59s/it]====================
+answer:  def sum_range_list(lst, start, end):
+    total = 0
+    for i in range(start, end + 1):
+        total += lst[i]
+    return total
+
+nfe:  27
+avg nfe:  41.75625
+====================
+
+Generating...:  80%|████████  | 160/200 [04:05<00:57,  1.44s/it]====================
+answer:  def perimeter_pentagon(side):
+    return 5 * side
+
+nfe:  23
+avg nfe:  41.63975155279503
+====================
+
+Generating...:  80%|████████  | 161/200 [04:06<00:50,  1.29s/it]====================
+answer:  def count_occurance(s):
+    count = 0
+    for char in s:
+        if char == 'std':
+            count += 1
+    return count
+
+nfe:  29
+avg nfe:  41.56172839506173
+====================
+
+Generating...:  81%|████████  | 162/200 [04:07<00:47,  1.24s/it]====================
+answer:  import re
+def remove_splchar(s):
+    return re.sub(r'[^a-zA-Z0-9]', '', s)
+
+nfe:  24
+avg nfe:  41.45398773006135
+====================
+
+Generating...:  82%|████████▏ | 163/200 [04:08<00:43,  1.17s/it]====================
+answer:  def group_keyvalue(pairs):
+    result = {}
+    for key, value in pairs:
+        if key not in result:
+            result[key] = []
+        result[key].append(value)
+    return result
+
+nfe:  30
+avg nfe:  41.38414634146341
+====================
+
+Generating...:  82%|████████▏ | 164/200 [04:09<00:42,  1.17s/it]====================
+answer:  def is_valid_parenthese(s):
+    stack = []
+    for char in s:
+        if char in "({[":
+            stack.append(char)
+        elif char in ")}":
+            if not stack or stack[-1] != char:
+                return False
+    return not stack
+
+nfe:  40
+avg nfe:  41.375757575757575
+====================
+
+Generating...:  82%|████████▎ | 165/200 [04:10<00:43,  1.25s/it]====================
+answer:  def perimeter_triangle(a,b,c):
+    return a+b+c
+nfe:  25
+avg nfe:  41.27710843373494
+====================
+
+Generating...:  83%|████████▎ | 166/200 [04:11<00:39,  1.18s/it]====================
+answer:  import math
+
+def answer(n, m):
+    def lcm(a, b):
+        return abs(a*b)//math.gcd(a, b)
+
+    for i in range(1, n+1):
+        for j in range(i+1, m+1):
+            if lcm(i, j) <= m:
+                return (i, j)
+    return None
+
+nfe:  64
+avg nfe:  41.41317365269461
+====================
+
+Generating...:  84%|████████▎ | 167/200 [04:13<00:48,  1.46s/it]====================
+answer:  def string_literals(literals, string):
+    for literal in literals:
+        if literal in string:
+            return "Matched!"
+    return "Not Matched!"
+
+nfe:  25
+avg nfe:  41.31547619047619
+====================
+
+Generating...:  84%|████████▍ | 168/200 [04:14<00:42,  1.32s/it]====================
+answer:  def is_num_keith(num):
+    if num < 10:
+        return False
+    if num % 10 == 0:
+        return False
+    if num % 10 == 5:
+        return False
+    if num % 10 == 8:
+        return False
+    if num % 10 == 9:
+        return False
+    if num % 10 == 6:
+        return False
+    if num % 10 == 7:
+        return False
+    if num % 10 == 2:
+        return False
+    if num % 10 == 3:
+        return False
+    if num % 10 == 4:
+        return False
+    if num % 10 == 1:
+        return False
+    if num % 10 == 0:
+        return False
+    return True
+
+nfe:  119
+avg nfe:  41.77514792899408
+====================
+
+Generating...:  84%|████████▍ | 169/200 [04:18<01:02,  2.03s/it]====================
+answer:  import math
+def distance_lat_long(lat1, lon1, lat2, lon2):
+    # Haversine formula to calculate distance between two points on the Earth's surface
+    R = 6371  # Earth's radius in kilometers
+    lat1 = math.radians(lat1)  # Convert latitude to radians
+    lat2 = math.radians(lat2)  # Convert latitude to radians
+    lon1 = math.radians(lon1)  # Convert longitude to radians
+    lon2 = math.radians(lon2)  # Convert longitude to radians
+
+    # Calculate the Haversine formula
+    a = math.sin(lon2 / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(lat1 / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    # Calculate the distance
+    distance = R * c
+    return distance
+
+nfe:  101
+avg nfe:  42.12352941176471
+====================
+
+Generating...:  85%|████████▌ | 170/200 [04:21<01:11,  2.37s/it]====================
+answer:  def common_prefix(strings, n):
+    if n == 0:
+        return ""
+    prefix = ""
+    for i in range(n):
+        if i == 0:
+            if len(prefix) == 0:
+                prefix = strings[i][0]
+            else:
+                if strings[i][0] != strings[i-1][0]:
+                    return ""
+        else:
+            if len(prefix) == 0:
+                prefix = strings[i][0]
+            else:
+                if strings[i][0] != strings[i-1][0]:
+                    return ""
+    return prefix
+
+nfe:  107
+avg nfe:  42.50292397660819
+====================
+
+Generating...:  86%|████████▌ | 171/200 [04:25<01:17,  2.66s/it]====================
+answer:  import re
+def find_character(s):
+    upper = []
+    lower = []
+    numeric = []
+    special = []
+
+    # Find uppercase characters
+    upper = re.findall(r'[A-Z]', s)
+    # Find lowercase characters
+    lower = re.findall(r'[a-z]', s)
+    # Find numeric characters
+    numeric = re.findall(r'\d', s)
+    # Find special characters
+    special = re.findall(r'[^a-zA-Z0-9]', s)
+
+    return (upper, lower, numeric, special)
+
+nfe:  61
+avg nfe:  42.61046511627907
+====================
+
+Generating...:  86%|████████▌ | 172/200 [04:27<01:09,  2.48s/it]====================
+answer:  def count_pairs(arr, k, n):
+    count = 0
+    for i in range(len(arr)):
+        for j in range(i, len(arr)):
+            if abs(arr[i] - arr[j]) == k:
+                count += 1
+    return count
+
+nfe:  37
+avg nfe:  42.578034682080926
+====================
+
+Generating...:  86%|████████▋ | 173/200 [04:28<00:57,  2.15s/it]====================
+answer:  def greater_specificnum(lst, num):
+    return any(x in lst if x > num)
+
+nfe:  30
+avg nfe:  42.50574712643678
+====================
+
+Generating...:  87%|████████▋ | 174/200 [04:29<00:48,  1.85s/it]====================
+answer:  import math
+def parabola_focus(a, b, c):
+    # Calculate the discriminant
+    discriminant = b**2 - 4*a*c
+
+    # Calculate the x-coordinate of the vertex
+    vertex_x = -b / (2*a)
+    vertex_y = c - (b**2) / (4*a)
+
+    # Calculate the y-coordinate of the focus
+    focus_y = vertex_y + math.sqrt(discriminant) / (4*a)
+
+    return (vertex_x, focus_y)
+
+# Test cases
+assert parabola_focus(5, 3, 2) == (-0.3, 1.6)
+assert parabola_focus(9, 8, 4) == (-0.4444444444444444, 2.25)
+assert parabola_focus(2, 4, 6) == (-1.0, 4.125)
+
+nfe:  96
+avg nfe:  42.81142857142857
+====================
+
+Generating...:  88%|████████▊ | 175/200 [04:32<00:55,  2.20s/it]====================
+answer:  import re
+def check_literals(text, literals):
+    for literal in literals:
+        pattern = re.escape(literal)
+        if re.search(pattern, text):
+            return 'Matched!'
+    return 'Not Matched!'
+
+nfe:  41
+avg nfe:  42.80113636363637
+====================
+
+Generating...:  88%|████████▊ | 176/200 [04:34<00:47,  1.98s/it]====================
+answer:  def longest_common_subsequence(seq1, seq2, len1, len2):
+    dp = [[0] * (len1 + 1) for _ in range(len2 + 1)]
+    for i in range(1, len1 + 1):
+        for j in range(1, len2 + 1):
+            if seq1[i - 1] == seq2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    return dp[len1][len2]
+
+# Test cases
+assert longest_common_subsequence("AGGTAB", "GXTXAYB", 6, 7) == 4
+assert longest_common_subsequence("ABCDGH", "AEDFHR", 6, 6) == 3
+assert longest_common_subsequence("AXYT", "AYZX", 4, 4) == 2
+
+nfe:  57
+avg nfe:  42.88135593220339
+====================
+
+Generating...:  88%|████████▊ | 177/200 [04:36<00:45,  1.96s/it]====================
+answer:  import math
+def prod_Square(n):
+    if n < 0:
+        return False
+    x = int(math.sqrt(n))
+    if x * x != n:
+        return False
+    y = n // x
+    if y * y != n:
+        return False
+    return True
+
+nfe:  55
+avg nfe:  42.949438202247194
+====================
+
+Generating...:  89%|████████▉ | 178/200 [04:37<00:42,  1.93s/it]====================
+answer:  def first_Missing_Positive(nums, n):
+    i = 0
+    for num in nums:
+        if num > 0:
+            i += 1
+            if i > n:
+                return i
+    return n + 1
+
+nfe:  134
+avg nfe:  43.45810055865922
+====================
+
+Generating...:  90%|████████▉ | 179/200 [04:42<00:54,  2.58s/it]====================
+answer:  def count_Intgral_Points(x1, y1, x2, y2):
+    count = 0
+    for x in range(x1, x2 + 1):
+        for y in range(y1, y2 + 1):
+            count += 1
+    return count
+
+nfe:  34
+avg nfe:  43.40555555555556
+====================
+
+Generating...:  90%|█████████ | 180/200 [04:43<00:43,  2.19s/it]====================
+answer:  def check_monthnumber(month):
+    months = ["January", "April", "March", "May", "July", "August", "October", "December", "June"]
+    if month in months:
+        return True
+    else:
+        return False
+
+nfe:  48
+avg nfe:  43.430939226519335
+====================
+
+Generating...:  90%|█████████ | 181/200 [04:44<00:38,  2.02s/it]====================
+answer:  def check_String(s):
+    has_alpha = False
+    has_number = False
+    for char in s:
+        if char.isalpha():
+            has_alpha = True
+        if char.isdigit():
+            has_number = True
+    return has_alpha and has_number
+
+nfe:  41
+avg nfe:  43.417582417582416
+====================
+
+Generating...:  91%|█████████ | 182/200 [04:46<00:33,  1.86s/it]====================
+answer:  def remove_tuple(tup):
+    seen = set()
+    result = []
+    for item in tup:
+        if item not in seen:
+            seen.add(item)
+            result.append(item)
+    return tuple(result)
+
+nfe:  34
+avg nfe:  43.36612021857923
+====================
+
+Generating...:  92%|█████████▏| 183/200 [04:47<00:28,  1.69s/it]====================
+answer:  def octal_To_Decimal(octal):
+    return int(octal, 8)
+
+nfe:  26
+avg nfe:  43.27173913043478
+====================
+
+Generating...:  92%|█████████▏| 184/200 [04:48<00:23,  1.49s/it]====================
+answer:  def first(arr, x, n):
+    index = 0
+    for i in range(n):
+        if arr[i] < x:
+            index = i
+            break
+    return index
+
+nfe:  50
+avg nfe:  43.30810810810811
+====================
+
+Generating...:  92%|█████████▎| 185/200 [04:50<00:23,  1.56s/it]====================
+answer:  def remove_tuples(tuples, k):
+    result = []
+    for t in tuples:
+        if len(t) != k:
+            result.append(t)
+    return result
+
+nfe:  27
+avg nfe:  43.22043010752688
+====================
+
+Generating...:  93%|█████████▎| 186/200 [04:51<00:19,  1.42s/it]====================
+answer:  def find_exponentio(tup1, tup2):
+    result = []
+    for i in range(len(tup1)):
+        result.append(tup1[i] ** tup2[i])
+    return result
+
+nfe:  30
+avg nfe:  43.149732620320854
+====================
+
+Generating...:  94%|█████████▎| 187/200 [04:52<00:17,  1.35s/it]====================
+answer:  import math
+def largest_triangle(a, b):
+    # Calculate the area of the ellipse
+    area = math.pi * a * b
+
+    # Calculate the area of the triangle that can be inscribed
+    triangle_area = math.sqrt(4 * math.pi * a * b) / 3
+
+    # Calculate the height of the triangle
+    height = math.sqrt(4 * a * b - (a * a + b * b) / 4)
+
+    # Calculate the base of the triangle
+    base = math.sqrt(4 * a * b - (a * a + b * b) / 4)
+
+    # Calculate the perimeter of the triangle
+    perimeter = a + b + base
+
+    # Calculate the semi-perimeter of the triangle
+    semi_perimeter = perimeter / 2
+
+    # Calculate the area of the triangle using Heron's formula
+    area = math.sqrt(semi_perimeter * (semi_perimeter - a) * (semi_perimeter - b) * (semi_perimeter - base))
+
+    return area
+nfe:  157
+avg nfe:  43.755319148936174
+====================
+
+Generating...:  94%|█████████▍| 188/200 [04:57<00:29,  2.42s/it]====================
+answer:  def highest_Power_of_2(n):
+    if n == 0:
+        return 0
+    elif n == 1:
+        return 1
+    elif n == 2:
+        return 2
+    elif n == 3:
+        return 4
+    elif n == 4:
+        return 8
+    elif n == 5:
+        return 16
+    elif n == 6:
+        return 32
+    elif n == 7:
+        return 64
+    elif n == 8:
+        return 128
+    elif n == 9:
+        return 256
+    elif n == 10:
+        return 512
+    elif n == 11:
+        return 1024
+    elif n == 12:
+        return 2048
+    elif n == 13:
+        return 4096
+    else:
+        return n
+
+nfe:  52
+avg nfe:  43.7989417989418
+====================
+
+Generating...:  94%|█████████▍| 189/200 [04:59<00:24,  2.25s/it]====================
+answer:  def position_max(nums):
+    result = []
+    max_val = max(nums)
+    for i in range(len(nums)):
+        if nums[i] == max_val:
+            result.append(i)
+    return result
+
+nfe:  31
+avg nfe:  43.73157894736842
+====================
+
+Generating...:  95%|█████████▌| 190/200 [05:00<00:19,  1.94s/it]====================
+answer:  def chkList(lst):
+    if len(lst) == 1:
+        return True
+    elif len(lst) == 2:
+        return lst[0] == lst[1]
+    else:
+        return False
+
+nfe:  53
+avg nfe:  43.78010471204188
+====================
+
+Generating...:  96%|█████████▌| 191/200 [05:02<00:17,  1.92s/it]====================
+answer:  def remove_even(s):
+    result = ""
+    for i in s:
+        if i % 2 == 0:
+            result += i
+    return result
+
+nfe:  35
+avg nfe:  43.734375
+====================
+
+Generating...:  96%|█████████▌| 192/200 [05:03<00:13,  1.74s/it]====================
+answer:  def hamming_Distance(num1, num2):
+    distance = 0
+    for i in range(8):
+        if (num1 & (1 << i)) != (num2 & (1 << i)):
+            distance += 1
+    return distance
+
+nfe:  34
+avg nfe:  43.6839378238342
+====================
+
+Generating...:  96%|█████████▋| 193/200 [05:05<00:11,  1.60s/it]====================
+answer:  def count(string, char):
+    count = 0
+    for i in string:
+        if i == char:
+            count += 1
+    return count
+
+nfe:  27
+avg nfe:  43.597938144329895
+====================
+
+Generating...:  97%|█████████▋| 194/200 [05:06<00:08,  1.45s/it]====================
+answer:  def inversion_elements(tup):
+    result = []
+    for i in range(len(tup)):
+        for j in range(i+1, len(tup)):
+            if tup[i] > tup[j]:
+                result.append(-tup[i] - tup[j])
+    return result
+
+nfe:  45
+avg nfe:  43.6051282051282
+====================
+
+Generating...:  98%|█████████▊| 195/200 [05:07<00:07,  1.51s/it]====================
+answer:  def concatenate_elements(tup):
+    result = []
+    for i in range(len(tup)-1):
+        result.append(tup[i] + tup[i+1])
+    return result
+
+nfe:  36
+avg nfe:  43.566326530612244
+====================
+
+Generating...:  98%|█████████▊| 196/200 [05:09<00:05,  1.47s/it]====================
+answer:  def find_longest_repeating_subseq(s):
+    n = len(s)
+    count = 0
+    dp = {}
+    for i in range(n):
+        key = s[i:i+1]
+        if key in dp:
+            count = dp[key]
+            dp[key] += 1
+        else:
+            dp[key] = 1
+    return count
+
+nfe:  144
+avg nfe:  44.076142131979694
+====================
+
+Generating...:  98%|█████████▊| 197/200 [05:13<00:07,  2.41s/it]====================
+answer:  import re
+def is_decimal(s):
+    pattern = re.compile(r'^\d+(\.\d{1,2})?$')
+    return bool(pattern.match(s))
+
+nfe:  35
+avg nfe:  44.03030303030303
+====================
+
+Generating...:  99%|█████████▉| 198/200 [05:15<00:04,  2.08s/it]====================
+answer:  import heapq
+def heap_replace(nums, item):
+    heapq.heappush(nums, item)
+    heapq.heappop(nums)
+    return nums
+
+nfe:  33
+avg nfe:  43.97487437185929
+====================
+
+Generating...: 100%|█████████▉| 199/200 [05:16<00:01,  1.85s/it]====================
+answer:  import re
+def is_allowed_specific_char(s):
+    pattern = r'^[a-zA-Z0-9]+$'
+    return bool(re.match(pattern,s))
+
+nfe:  29
+avg nfe:  43.9
+====================
+
+Generating...: 100%|██████████| 200/200 [05:17<00:00,  1.64s/it]Generating...: 100%|██████████| 200/200 [05:17<00:00,  1.59s/it]
+Total number of tokens generated: 13371
+Total time taken: 317.70894479751587 seconds
+Tokens per second: 42.085689544677734
+Total NFE is 8780
+Tokens per forward (TPF): 1.522892951965332
+fatal: not a git repository (or any of the parent directories): .git
+2026-05-02:16:27:33 INFO     [loggers.evaluation_tracker:247] Saving results aggregated
+2026-05-02:16:27:35 INFO     [loggers.evaluation_tracker:119] Saving per-task samples to /home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/llada/evals_results_0502/llada15_baseline/mbpp-s256-n200/41pjso2k/*.jsonl
+llada_dist ({'model_path': 'GSAI-ML/LLaDA-1.5', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}), gen_kwargs: ({}), limit: 200.0, num_fewshot: 3, batch_size: 1
+|Tasks|Version|Filter|n-shot| Metric  |   |Value|   |Stderr|
+|-----|------:|------|-----:|---------|---|----:|---|-----:|
+|mbpp |      1|none  |     3|pass_at_1|↑  | 0.36|±  | 0.034|
+

@@ -1,0 +1,100 @@
+{"task_id": 11, "completion": "", "pass_at_1": 0.0}
+{"task_id": 12, "completion": "", "pass_at_1": 0.0}
+{"task_id": 13, "completion": "", "pass_at_1": 0.0}
+{"task_id": 14, "completion": "", "pass_at_1": 0.0}
+{"task_id": 15, "completion": "def split_lowerstring(s):\n    result = []\n    temp = ''\n    for char in s:\n        if char.islower():\n            temp += char\n        elif temp:\n            result.append(temp)\n            temp = ''\n    result.append(temp)\n    return result", "pass_at_1": 0.0}
+{"task_id": 16, "completion": "import re\ndef text_lowercase_underscore(text):\n    patterns = re.compile('[a-z][a-z]')\n    match = patterns.search(text)\n    if match:\n        return 'Found a match!'\n    else:\n        return 'Not matched!'", "pass_at_1": 0.0}
+{"task_id": 17, "completion": "import math", "pass_at_1": 0.0}
+{"task_id": 18, "completion": "", "pass_at_1": 0.0}
+{"task_id": 19, "completion": "", "pass_at_1": 0.0}
+{"task_id": 20, "completion": "", "pass_at_1": 0.0}
+{"task_id": 21, "completion": "", "pass_at_1": 0.0}
+{"task_id": 22, "completion": "", "pass_at_1": 0.0}
+{"task_id": 23, "completion": "", "pass_at_1": 0.0}
+{"task_id": 24, "completion": "", "pass_at_1": 0.0}
+{"task_id": 25, "completion": "def find_Product(arr, n):\n    product = 1\n    for i in range(n):\n        if arr.count(arr[i]) == 1:\n            product *= arr[i]\n    return product", "pass_at_1": 1.0}
+{"task_id": 26, "completion": "", "pass_at_1": 0.0}
+{"task_id": 27, "completion": "", "pass_at_1": 0.0}
+{"task_id": 28, "completion": "", "pass_at_1": 0.0}
+{"task_id": 29, "completion": "", "pass_at_1": 0.0}
+{"task_id": 30, "completion": "def count_Substring_With_Equal_Ends(s):\n    count = 0\n    for i in range(len(s)):\n        for j in range(i + 1, len(s) + 1):\n            if s[i] == s[j - 1]:\n                count += 1\n    return count", "pass_at_1": 1.0}
+{"task_id": 31, "completion": "import heapq as hq\ndef func(nums, k):\n    count_dict = {}\n    for lst in nums:\n        for num in lst:\n            count_dict[num] = count_dict.get(num, 0) + 1\n    top_nums = hq.nlargest(k, count_dict.keys(), key=count_dict.get)\n    return top_nums", "pass_at_1": 0.0}
+{"task_id": 32, "completion": "def max_Prime_Factors(n):\n    i = 2\n    while i * i <= n:\n        if n % i == 0:\n            n //= i\n        else:\n            i += 1\n    return n", "pass_at_1": 1.0}
+{"task_id": 33, "completion": "", "pass_at_1": 0.0}
+{"task_id": 34, "completion": "def find_missing(arr, n):\n    low = 0\n    high = n - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == mid:\n            low = mid + 1\n        else:\n            high = mid - 1\n    return low", "pass_at_1": 0.0}
+{"task_id": 35, "completion": "", "pass_at_1": 0.0}
+{"task_id": 36, "completion": "def find_Nth_Digit(x, y, n):\n    fraction = str(x / y)\n    if len(fraction) > n:\n        return fraction[n - 1]\n    else:\n        return None", "pass_at_1": 0.0}
+{"task_id": 37, "completion": "", "pass_at_1": 0.0}
+{"task_id": 38, "completion": "def div_even_odd(nums):\n    even_num = [num for num in nums if num % 2 == 0]\n    odd_num = [num for num in nums if num % 2 != 0]\n    return even_num[0] / odd_num[0]", "pass_at_1": 1.0}
+{"task_id": 39, "completion": "def rearange_string(s):\n    n = len(s)\n    if n <= 1:\n        return s\n    count = Counter(s)\n    res = [None] * n\n    i = 0\n    for char, freq in count.most_common():\n        for _ in range(freq):\n            res[i] = char\n            i += 2\n            if i >= n:\n                i = 1\n    return ''.join(res)", "pass_at_1": 0.0}
+{"task_id": 40, "completion": "from collections import Counter\ndef freq_element(lst):\n    counter = Counter()\n    for sublist in lst:\n        for item in sublist:\n            counter[item] += 1\n    return dict(counter)", "pass_at_1": 1.0}
+{"task_id": 41, "completion": "", "pass_at_1": 0.0}
+{"task_id": 42, "completion": "def find_Sum(arr, n):\n    sum = 0\n    for i in range(n):\n        if arr.count(arr[i]) > 1:\n            sum += arr[i]\n    return sum", "pass_at_1": 1.0}
+{"task_id": 43, "completion": "import re\ndef text_match(text):\n    patterns = '[ab]{2,}_[ab]{2,}'\n    match = re.search(patterns, text)\n    if match:\n        return 'Found a match!'\n    else:\n        return 'Not matched!'", "pass_at_1": 0.0}
+{"task_id": 44, "completion": "import re\ndef text_match_string(text):\n    patterns = re.compile('\\\\bpython\\\\b')\n    if patterns.search(text):\n        return 'Found a match!'\n    else:\n        return 'Not matched!'", "pass_at_1": 0.0}
+{"task_id": 45, "completion": "import math\ndef get_gcd(arr):\n    result = arr[0]\n    for num in arr[1:]:\n        result = math.gcd(result, num)\n    return result", "pass_at_1": 1.0}
+{"task_id": 46, "completion": "", "pass_at_1": 0.0}
+{"task_id": 47, "completion": "", "pass_at_1": 0.0}
+{"task_id": 48, "completion": "def odd_bit_set_number(n):\n    mask = 1\n    result = 0\n    while mask <= n:\n        result = result | mask\n        mask = mask << 1\n    return result", "pass_at_1": 0.0}
+{"task_id": 49, "completion": "", "pass_at_1": 0.0}
+{"task_id": 50, "completion": "", "pass_at_1": 0.0}
+{"task_id": 51, "completion": "", "pass_at_1": 0.0}
+{"task_id": 52, "completion": "", "pass_at_1": 0.0}
+{"task_id": 53, "completion": "", "pass_at_1": 0.0}
+{"task_id": 54, "completion": "", "pass_at_1": 0.0}
+{"task_id": 55, "completion": "def tn_gp(a, n, r):\n    return a * r ** (n - 1)", "pass_at_1": 1.0}
+{"task_id": 56, "completion": "", "pass_at_1": 0.0}
+{"task_id": 57, "completion": "", "pass_at_1": 0.0}
+{"task_id": 58, "completion": "", "pass_at_1": 0.0}
+{"task_id": 59, "completion": "", "pass_at_1": 0.0}
+{"task_id": 60, "completion": "def max_len_sub(arr, k):\n    n = len(arr)\n    dp = [1] * n\n    for i in range(1, n):\n        for j in range(i):\n            if abs(arr[i] - arr[j]) <= k:\n                dp[i] = max(dp[i], dp[j] + 1)\n    return max(dp)", "pass_at_1": 0.0}
+{"task_id": 61, "completion": "def count_Substrings(s, n):\n    count = 0\n    for i in range(n):\n        for j in range(i, n):\n            sum = sum((int(s[k]) for k in range(i, j + 1)))\n            if sum == j - i + 1:\n                count += 1\n    return count", "pass_at_1": 0.0}
+{"task_id": 62, "completion": "", "pass_at_1": 0.0}
+{"task_id": 63, "completion": "", "pass_at_1": 0.0}
+{"task_id": 64, "completion": "", "pass_at_1": 0.0}
+{"task_id": 65, "completion": "", "pass_at_1": 0.0}
+{"task_id": 66, "completion": "", "pass_at_1": 0.0}
+{"task_id": 67, "completion": "def bell_number(n):\n    bell = [1] + [0] * n\n    bell[0] = 1\n    for i in range(1, n + 1):\n        bell[i] = bell[i - 1] + sum((bell[j] for j in range(i - 1)))\n    return bell[-1]", "pass_at_1": 0.0}
+{"task_id": 68, "completion": "", "pass_at_1": 0.0}
+{"task_id": 69, "completion": "", "pass_at_1": 0.0}
+{"task_id": 70, "completion": "", "pass_at_1": 0.0}
+{"task_id": 71, "completion": "def comb_sort(arr):\n    n = len(arr)\n    gap = n // 2\n    while gap > 1:\n        for i in range(gap, n):\n            j = i\n            while j >= gap and arr[j] < arr[j - gap]:\n                arr[j], arr[j - gap] = (arr[j - gap], arr[j])\n                j -= gap\n        gap = int(gap / 1.3)\n    return arr", "pass_at_1": 0.0}
+{"task_id": 72, "completion": "def dif_Square(n):\n    i = int(math.sqrt(n))\n    while i >= 0:\n        if n - i * i == i * i:\n            return True\n        i -= 1\n    return False", "pass_at_1": 0.0}
+{"task_id": 73, "completion": "", "pass_at_1": 0.0}
+{"task_id": 74, "completion": "", "pass_at_1": 0.0}
+{"task_id": 75, "completion": "def find_tuples(tuples, k):\n    result = []\n    for tup in tuples:\n        if all((num % k == 0 for num in tup)):\n            result.append(tup)\n    return str(result)", "pass_at_1": 1.0}
+{"task_id": 76, "completion": "", "pass_at_1": 0.0}
+{"task_id": 77, "completion": "", "pass_at_1": 0.0}
+{"task_id": 78, "completion": "def count_With_Odd_SetBits(n):\n    count = 0\n    for i in range(n + 1):\n        if bin(i).count('1') % 2 != 0:\n            count += 1\n    return count", "pass_at_1": 1.0}
+{"task_id": 79, "completion": "", "pass_at_1": 0.0}
+{"task_id": 80, "completion": "", "pass_at_1": 0.0}
+{"task_id": 81, "completion": "", "pass_at_1": 0.0}
+{"task_id": 82, "completion": "import math", "pass_at_1": 0.0}
+{"task_id": 83, "completion": "", "pass_at_1": 0.0}
+{"task_id": 84, "completion": "def sequence(n):\n    if n == 1:\n        return 1\n    elif n == 2:\n        return 1\n    elif n == 3:\n        return 2\n    else:\n        count = 0\n        for i in range(1, n):\n            count += sequence(i)\n        return count", "pass_at_1": 0.0}
+{"task_id": 85, "completion": "import math", "pass_at_1": 0.0}
+{"task_id": 86, "completion": "", "pass_at_1": 0.0}
+{"task_id": 87, "completion": "", "pass_at_1": 0.0}
+{"task_id": 88, "completion": "def freq_count(lst):\n    freq = {}\n    for num in lst:\n        if num in freq:\n            freq[num] += 1\n        else:\n            freq[num] = 1\n    return freq", "pass_at_1": 1.0}
+{"task_id": 89, "completion": "def closest_num(n):\n    return n - 1", "pass_at_1": 1.0}
+{"task_id": 90, "completion": "", "pass_at_1": 0.0}
+{"task_id": 91, "completion": "", "pass_at_1": 0.0}
+{"task_id": 92, "completion": "", "pass_at_1": 0.0}
+{"task_id": 93, "completion": "", "pass_at_1": 0.0}
+{"task_id": 94, "completion": "", "pass_at_1": 0.0}
+{"task_id": 95, "completion": "", "pass_at_1": 0.0}
+{"task_id": 96, "completion": "", "pass_at_1": 0.0}
+{"task_id": 97, "completion": "def frequency_lists(lists):\n    freq = {}\n    for sublist in lists:\n        for item in sublist:\n            freq[item] = freq.get(item, 0) + 1\n    return freq", "pass_at_1": 1.0}
+{"task_id": 98, "completion": "", "pass_at_1": 0.0}
+{"task_id": 99, "completion": "", "pass_at_1": 0.0}
+{"task_id": 100, "completion": "def next_smallest_palindrome(n):\n\n    def is_palindrome(n):\n        return str(n) == str(n)[::-1]\n    while not is_palindrome(n):\n        n += 1\n    return n", "pass_at_1": 0.0}
+{"task_id": 101, "completion": "def kth_element(arr, n, k):\n    return arr[k - 1]", "pass_at_1": 1.0}
+{"task_id": 102, "completion": "", "pass_at_1": 0.0}
+{"task_id": 103, "completion": "def eulerian_num(n, m):\n    if m == 0 or n == 0:\n        return 1\n    if m > n:\n        return 0\n    else:\n        return eulerian_num(n - 1, m - 1) + eulerian_num(n - 1, m) + eulerian_num(n - 1, m + 1)", "pass_at_1": 0.0}
+{"task_id": 104, "completion": "", "pass_at_1": 0.0}
+{"task_id": 105, "completion": "", "pass_at_1": 0.0}
+{"task_id": 106, "completion": "", "pass_at_1": 0.0}
+{"task_id": 107, "completion": "def count_Hexadecimal(start, end):\n    count = 0\n    for num in range(start, end + 1):\n        if hex(num).upper().startswith('0X'):\n            count += 1\n    return count", "pass_at_1": 0.0}
+{"task_id": 108, "completion": "import heapq as hq", "pass_at_1": 0.0}
+{"task_id": 109, "completion": "def odd_Equivalent(s, n):\n    count = 0\n    for i in range(n):\n        s = s[1:] + s[0]\n        if int(s, 2) % 2 != 0:\n            count += 1\n    return count", "pass_at_1": 1.0}
+{"task_id": 110, "completion": "def extract_missing(ranges, start, end):\n    missing = []\n    for i in range(start, end + 1):\n        if i not in ranges:\n            missing.append((i, i))\n            for r in ranges:\n                if r[0] <= i <= r[1]:\n                    missing.append((r[0], r[1]))\n                    break\n    return missing", "pass_at_1": 0.0}

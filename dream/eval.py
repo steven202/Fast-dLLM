@@ -34,7 +34,15 @@ from lm_eval import utils
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
 from lm_eval.api.registry import register_model
-from lm_eval.models.utils import get_dtype
+def get_dtype(dtype=None):
+    """Get torch dtype from string or return default."""
+    if dtype is None:
+        return torch.float32
+    if isinstance(dtype, str):
+        if dtype == "auto":
+            return torch.float32
+        return getattr(torch, dtype)
+    return dtype
 from lm_eval.__main__ import cli_evaluate
 from model.generation_utils_block import DreamGenerationMixin
 import types
@@ -210,6 +218,7 @@ class Dream(LM):
         self.use_cache = use_cache
         self.dual_cache = dual_cache
         self.generated_token_num = 0
+        self.total_nfe = 0
         self.save_dir = save_dir
     @property
     def batch_size(self):
@@ -323,6 +332,7 @@ class Dream(LM):
 
         # decode
         self.generated_token_num += (generation_ids.sequences[0][prompt_ids.shape[1] :] != self.tokenizer.eos_token_id).sum().item()
+        self.total_nfe += generation_ids.nfe if generation_ids.nfe is not None else 0
         print(f"generated_token_num: {self.generated_token_num}")
         responses = [
             self.tokenizer.decode(g[len(p) :].tolist()).split(self.tokenizer.eos_token)[0]
@@ -395,6 +405,8 @@ class Dream(LM):
         print(f"Time taken: {end_time - start_time} seconds")
         print(f"Generated token num: {self.generated_token_num}")
         print(f"Generated token num per second: {self.generated_token_num / (end_time - start_time)}")
+        print(f"Total NFE: {self.total_nfe}")
+        print(f"Tokens per forward (TPF): {self.generated_token_num / self.total_nfe if self.total_nfe > 0 else 0}")
 
         return res
 

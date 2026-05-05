@@ -1,0 +1,342 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `1`
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+2026-03-11:19:19:41 WARNING  [config.evaluate_config:281] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-03-11:19:19:44 INFO     [_cli.run:376] Selected Tasks: ['humaneval']
+2026-03-11:19:19:44 WARNING  [evaluator:181] pretrained=None appears to be an instruct or chat variant but chat template is not applied. Recommend setting `apply_chat_template`
+        (optionally `fewshot_as_multiturn`).
+2026-03-11:19:19:44 INFO     [evaluator:211] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-03-11:19:19:44 INFO     [evaluator:236] Initializing llada_dist model, with arguments: {'model_path': 'GSAI-ML/LLaDA-8B-Instruct', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}
+`torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading checkpoint shards:   0%|                                                                                                  | 0/6 [00:00<?, ?it/s]
+Loading checkpoint shards: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 6/6 [00:00<00:00, 359.19it/s]
+2026-03-11:19:19:51 INFO     [tasks:700] Selected tasks:
+2026-03-11:19:19:51 INFO     [tasks:691] Task: humaneval (humaneval/humaneval.yaml)
+2026-03-11:19:19:51 INFO     [evaluator:314] humaneval: Using gen_kwargs: {'until': ['\nclass', '\ndef', '\n#', '\nif', '\nprint'], 'max_gen_toks': 1024, 'do_sample': False}
+2026-03-11:19:19:51 INFO     [api.task:311] Building contexts for humaneval on rank 0...
+
+  0%|                                                                                                                            | 0/10 [00:00<?, ?it/s]
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:00<00:00, 1122.49it/s]
+2026-03-11:19:19:51 INFO     [evaluator:584] Running generate_until requests
+
+Batching...:   0%|                                                                                                               | 0/10 [00:00<?, ?it/s]
+Batching...: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:00<00:00, 213995.10it/s]
+
+Generating...:   0%|                                                                                                             | 0/10 [00:00<?, ?it/s]
+Generating...:  10%|██████████                                                                                           | 1/10 [00:02<00:24,  2.78s/it]
+Generating...:  20%|████████████████████▏                                                                                | 2/10 [00:06<00:26,  3.34s/it]
+Generating...:  30%|██████████████████████████████▎                                                                      | 3/10 [00:10<00:23,  3.41s/it]
+Generating...:  40%|████████████████████████████████████████▍                                                            | 4/10 [00:11<00:17,  2.85s/it]
+Generating...:  50%|██████████████████████████████████████████████████▌                                                  | 5/10 [00:14<00:13,  2.79s/it]
+Generating...:  60%|████████████████████████████████████████████████████████████▌                                        | 6/10 [00:18<00:11,  2.99s/it]
+Generating...:  70%|██████████████████████████████████████████████████████████████████████▋                              | 7/10 [00:22<00:10,  3.41s/it]
+Generating...:  80%|████████████████████████████████████████████████████████████████████████████████▊                    | 8/10 [00:24<00:05,  2.98s/it]====================
+answer:  from typing import List
+
+def has_close_elements(numbers: List[float], threshold: float) -> bool:
+    """ Check if in given list of numbers, are any two numbers closer to each other than
+    given threshold.
+    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+    False
+    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+    True
+    """
+    for i in range(len(numbers)):
+        for j in range(i + 1, len(numbers)):
+            if abs(numbers[i] - numbers[j]) < threshold:
+                return True
+    return False
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+```
+nfe:  35
+avg nfe:  35.0
+====================
+
+====================
+answer:  ```python
+from typing import List
+import re
+
+def separate_paren_groups(paren_string: str) -> List[str]:
+    """
+    Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
+    separate those groups into separate strings and return the list of those.
+    Separate groups are balanced (each open brace is properly closed) and not nested within each other
+    Ignore any spaces in the input string.
+    >>> separate_paren_groups('( ) (( )) (( )( ))')
+    ['()', '(())', '(()())']
+    """
+    # Use regular expression to find all groups of balanced parentheses
+    groups = re.findall(r'(([^)]*)\)', paren_string)
+    return groups
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+```
+
+This function uses a regular expression to find all groups of balanced parentheses in the input string. The regular expression `(([^)]*))` matches any sequence of characters between parentheses, ensuring that the groups are balanced and not nested within each other. The `re.findall` function returns a list of all matches found as strings.
+nfe:  110
+avg nfe:  72.5
+====================
+
+====================
+answer:  To implement the `truncate_number` function, you need to extract the decimal part of the given number. The decimal part is the part of the number after the decimal point. You can achieve this by subtracting the integer part of the number from the number itself.
+
+Here's the implementation of the `truncate_number` function:
+
+```python
+def truncate_number(number: float) -> float:
+    """ Given a positive floating point number, it can be decomposed into
+    and integer part (largest integer smaller than given number) and decimals
+    (leftover part always smaller than 1).
+
+    Return the decimal part of the number.
+    >>> truncate_number(3.5)
+    0.5
+    """
+    return number - int(number)
+
+# Example usage:
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+```
+
+This function works by subtracting the integer part of the number from the number itself. The `int()` function is used to get the integer part of the number, which is the largest integer less than or equal to the number. Subtracting this integer part gives the decimal part.
+nfe:  105
+avg nfe:  83.33333333333333
+====================
+
+====================
+answer:  Here's the implementation of the `below_zero` function:
+
+```python
+from typing import List
+
+def below_zero(operations: List[int]) -> bool:
+    """ You're given a list of deposit and withdrawal operations on a bank account that starts with
+    zero balance. Your task is to detect if at any point the balance of account falls below zero, and
+    at that point the function should return True. Otherwise it should return False.
+    >>> below_zero([1, 2, 3])
+    False
+    >>> below_zero([1, 2, -4, 5])
+    True
+    """
+    balance = 0
+    for operation in operations:
+        balance += operation
+        if balance < 0:
+            return True
+    return False
+```
+
+This function iterates through the list of operations, updating the balance with each operation. If the balance falls below zero at any point, it returns `True`. If the loop completes without the balance falling below zero, it returns `False`.
+nfe:  58
+avg nfe:  77.0
+====================
+
+====================
+answer:  Here's the implementation of the `mean_absolute_deviation` function:
+
+```python
+from typing import List
+
+def mean_absolute_deviation(numbers: List[float]) -> float:
+    """ For a given list of input numbers, calculate Mean Absolute Deviation
+    around the mean of this dataset.
+    Mean Absolute Deviation is the average absolute difference between each
+    element and a centerpoint (mean in this case):
+    MAD = average | x - x_mean |
+    >>> mean_absolute_deviation([1.0, 2.0, 3.0, 4.0])
+    1.0
+    """
+    mean_value = sum(numbers) / len(numbers)
+    absolute_deviations = [abs(x - mean_value) for x in numbers]
+    mad = sum(absolute_deviations) / len(numbers)
+    return mad
+```
+
+This function first calculates the mean of the input list, then computes the absolute deviations from the mean, and finally calculates the mean of these deviations to get the Mean Absolute Deviation. The example provided in the docstring is used to demonstrate the function's usage and the result of the calculation.
+nfe:  79
+avg nfe:  77.4
+====================
+
+====================
+answer:  Here's the implementation of the `intersperse` function:
+
+
+```python
+from typing import List
+
+def intersperse(numbers: List[int], delimiter: int) -> List[int]:
+    """ Insert a number 'delimeter' between every two consecutive elements of input list `numbers'
+    >>> intersperse([], 4)
+    []
+    >>> intersperse([1, 2, 3], 4)
+    [1, 4, 2, 4, 3]
+    """
+    if not numbers:
+        return []
+    
+    result = []
+    for num in numbers:
+        if result:
+            result.append(delimiter)
+        result.append(num)
+    return result
+```
+
+This function iterates through the input list `numbers` and appends the `delimiter` to the result list between each element. If the input list is empty, it returns an empty list.
+
+You can test the function with the provided examples in the docstring.
+nfe:  100
+avg nfe:  81.16666666666667
+====================
+
+====================
+answer:  from typing import List
+
+def parse_nested_parens(paren_string: str) -> List[int]:
+    """
+    This function takes a string containing multiple groups of nested parentheses separated by spaces.
+    For each group, it returns the deepest level of nesting.
+
+    For example, for the group '(()())', the deepest level of nesting is 2, and for '((()))', it is 3.
+
+    >>> parse_nested_parens('(()()) ((())) () ((())()())')
+    [2, 3, 1, 3]
+    """
+    groups = paren_string.split()
+    results = []
+    for group in groups:
+        length = len(group)
+        if length > 0:
+            level = 0
+            for i in range(length):
+                if group[i] == '(':
+                    level += 1
+                elif group[i] == ')':
+                    level -= 1
+                    if level < 0:
+                        level = 0
+            results.append(level)
+    return results
+
+if __name__ == "__main__":
+    import doct
+    doct.testmod()
+nfe:  129
+avg nfe:  88.0
+====================
+
+====================
+answer:  Certainly! Below is the implementation of the `filter_by_substring` function:
+
+```python
+from typing import List
+
+def filter_by_substring(strings: List[str], substring: str) -> List[str]:
+    """ Filter an input list of strings only for ones that contain given substring
+    >>> filter_by_substring([], 'a')
+    []
+    >>> filter_by_substring(['abc', 'bacd', 'cde', 'array'], 'a')
+    ['abc', 'bacd', 'array']
+    """
+    return [string for string in strings if substring in string]
+```
+
+This function uses a list comprehension to filter the list of strings based on the presence of the specified substring. The docstring provides examples of how to use the function.
+nfe:  59
+avg nfe:  84.375
+====================
+
+====================
+answer:  Here's the implementation of the `sum_product` function:
+
+```python
+from typing import List, Tuple
+
+def sum_product(numbers: List[int]) -> Tuple[int, int]:
+    """ For a given list of integers, return a tuple consisting of a sum and a product of all the integers in a list.
+    Empty sum should be equal to 0 and empty product should be equal to 1.
+    >>> sum_product([])
+    (0, 1)
+    >>> sum_product([1, 2, 3, 4])
+    (10, 24)
+    """
+    if not numbers:
+        return (0, 1)
+    
+    total_sum = sum(numbers)
+    total_product = 1
+    for num in numbers:
+        total_product *= num
+    
+    return (total_sum, total_product)
+```
+
+This function first checks if the list is empty and returns `(0, 1)` if it is. Otherwise, it calculates the sum and product of the integers in the list using the `sum` function and a loop to compute the product. Finally, it returns the result as a tuple.
+Generating...:  90%|██████████████████████████████████████████████████████████████████████████████████████████▉          | 9/10 [00:26<00:02,  2.79s/it]
+Generating...: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:30<00:00,  2.93s/it]
+Generating...: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:30<00:00,  3.00s/it]
+
+nfe:  70
+avg nfe:  82.77777777777777
+====================
+
+====================
+answer:  Here's the implementation of the `rolling_max` function:
+
+```python
+from typing import List, Tuple
+
+def rolling_max(numbers: List[int]) -> List[int]:
+    """ From a given list of integers, generate a list of rolling maximum element found until given moment
+    in the sequence.
+    >>> rolling_max([1, 2, 3, 2, 3, 4, 2])
+    [1, 2, 3, 3, 3, 4, 4]
+    """
+    if not numbers:
+        return []
+
+    result = []
+    for num in numbers:
+        result.append(max(num, result[-1]))
+    return result
+
+# Example usage:
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+```
+
+This function iterates through the input list and keeps track of the rolling maximum by comparing each element with the last element in the result list. The result list is updated with the maximum of the current element and the last element in the result list. The `doctest` module is used to test the example usage provided.
+nfe:  96
+avg nfe:  84.1
+====================
+
+Total number of tokens generated: 2344
+Total time taken: 30.00913977622986 seconds
+Tokens per second: 78.10953521728516
+Total NFE is 841
+fatal: detected dubious ownership in repository at '/home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM
+2026-03-11:19:20:25 INFO     [loggers.evaluation_tracker:247] Saving results aggregated
+2026-03-11:19:20:25 INFO     [loggers.evaluation_tracker:119] Saving per-task samples to evals_results/dual_cache_parallel/humaneval-ns0-256-10/41pjso2k/*.jsonl
+llada_dist ({'model_path': 'GSAI-ML/LLaDA-8B-Instruct', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}), gen_kwargs: ({}), limit: 10.0, num_fewshot: None, batch_size: 1
+|  Tasks  |Version|  Filter   |n-shot|Metric|   |Value|   |Stderr|
+|---------|------:|-----------|-----:|------|---|----:|---|-----:|
+|humaneval|      1|create_test|     0|pass@1|   |    0|±  |     0|
+
+root@yotta-8hddemjq:/home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/llada# python postprocess_code.py evals_results/dual_cache_parallel/humaneval-ns0-256-10/41pjso2k/*.jsonl
+0.7

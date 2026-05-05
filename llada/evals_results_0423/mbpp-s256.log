@@ -1,0 +1,1843 @@
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `1`
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+2026-04-23:07:03:22 WARNING  [config.evaluate_config:281] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-04-23:07:04:57 INFO     [_cli.run:376] Selected Tasks: ['mbpp']
+2026-04-23:07:04:57 WARNING  [evaluator:181] pretrained=None appears to be an instruct or chat variant but chat template is not applied. Recommend setting `apply_chat_template`
+        (optionally `fewshot_as_multiturn`).
+2026-04-23:07:04:57 INFO     [evaluator:211] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-04-23:07:04:57 INFO     [evaluator:236] Initializing llada_dist model, with arguments: {'model_path': 'GSAI-ML/LLaDA-8B-Instruct', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 6/6 [00:00<00:00, 364.62it/s]
+2026-04-23:07:05:04 INFO     [tasks:700] Selected tasks:
+2026-04-23:07:05:04 INFO     [tasks:691] Task: mbpp (mbpp/mbpp.yaml)
+2026-04-23:07:05:04 INFO     [evaluator:314] mbpp: Using gen_kwargs: {'until': ['[DONE]'], 'do_sample': False}
+2026-04-23:07:05:04 WARNING  [evaluator:333] Overwriting default num_fewshot of mbpp from 3 to 3
+2026-04-23:07:05:04 INFO     [api.task:311] Building contexts for mbpp on rank 0...
+  0%|          | 0/100 [00:00<?, ?it/s] 21%|██        | 21/100 [00:00<00:00, 207.70it/s] 42%|████▏     | 42/100 [00:00<00:00, 207.56it/s] 63%|██████▎   | 63/100 [00:00<00:00, 207.37it/s] 84%|████████▍ | 84/100 [00:00<00:00, 207.39it/s]100%|██████████| 100/100 [00:00<00:00, 207.49it/s]
+2026-04-23:07:05:05 INFO     [evaluator:584] Running generate_until requests
+Batching...:   0%|          | 0/100 [00:00<?, ?it/s]Batching...: 100%|██████████| 100/100 [00:00<00:00, 2016492.31it/s]
+Generating...:   0%|          | 0/100 [00:00<?, ?it/s]Generating...:   1%|          | 1/100 [00:05<08:39,  5.24s/it]Generating...:   2%|▏         | 2/100 [00:07<06:06,  3.74s/it]Generating...:   3%|▎         | 3/100 [00:10<05:31,  3.42s/it]Generating...:   4%|▍         | 4/100 [00:14<05:19,  3.32s/it]Generating...:   5%|▌         | 5/100 [00:15<03:56,  2.49s/it]Generating...:   6%|▌         | 6/100 [00:19<04:56,  3.16s/it]Generating...:   7%|▋         | 7/100 [00:20<03:43,  2.40s/it]Generating...:   8%|▊         | 8/100 [00:24<04:35,  3.00s/it]Generating...:   9%|▉         | 9/100 [00:25<03:32,  2.34s/it]Generating...:  10%|█         | 10/100 [00:29<04:00,  2.68s/it]Generating...:  11%|█         | 11/100 [00:30<03:23,  2.29s/it]Generating...:  12%|█▏        | 12/100 [00:31<02:49,  1.93s/it]Generating...:  13%|█▎        | 13/100 [00:34<03:22,  2.33s/it]Generating...:  14%|█▍        | 14/100 [00:35<02:41,  1.88s/it]Generating...:  15%|█▌        | 15/100 [00:37<02:26,  1.72s/it]====================
+answer:  ```python
+def remove_Occ(s, char):
+    # Remove the first and last occurrence of the character
+    result = s[1:-1]
+    return result
+
+# Test cases
+print(remove_Occ("hello", "l"))  # Output: "helo"
+print(remove_Occ("abcda", "a"))   # Output: "bcd"
+print(remove_Occ("PHP", "P"))     # Output: "H"
+```
+
+This function `remove_Occ` takes a string `s` and a character `char` as input and returns a new string with the first and last occurrence of `char` removed. The slicing operation `s[1:-1]` is used to achieve this, which removes the first and last characters from the string.
+nfe:  93
+avg nfe:  93.0
+====================
+
+====================
+answer:  def sort_matrix(matrix):
+    # Create a list of lists from the matrix
+    matrix_list = list(matrix)
+    
+    # Sort the list of lists based on the sum of each row
+    sorted_list = sorted(matrix_list, key=lambda row: sum(row))
+    
+    # Convert the sorted list back to a matrix
+    sorted_matrix = [list(row) for row in sorted_list]
+    
+    return sorted_matrix
+
+# Test cases
+assert sort_matrix([[1, 2, 3], [2, 4, 5], [1, 1, 1]]) == [[1, 1, 1], [1, 2, 3], [2, 4, 5]]
+assert sort_matrix([[1, 2, 3], [-2, 4, -5], [1, -1, 1]]) == [[-2, 4, -5], [1, -1, 1], [1, 2, 3]]
+assert sort_matrix([[5, 8, 9], [6, 4, 3], [2, 1, 4]]) == 
+
+
+nfe:  74
+avg nfe:  83.5
+====================
+
+====================
+answer:  def count_common(words):
+    from collections import Counter
+    word_counts = Counter(words)
+    return word_counts.most_common()
+
+# Test cases
+assert count_common(['red', 'green', 'black', 'pink', 'black', 'black', 'black', 'white', 'black', 'black', 'orange', 'pink', 'pink', 'red', 'red', 'red', 'white', 'orange', 'white', 'black', 'pink', 'green', 'green', 'pink', 'green', 'pink', 'white', 'orange', 'orange', 'red']) == [('pink', 6), ('black', 5), ('white', 5), ('red', 4)]
+assert count_common(['one', 'two', 'three', 'four', 'five', 'one', 'two', 'one', 'three', 'one']) == [('one', 4), ('two', 2), ('three', 2), ('four', 1)]
+assert count_common(['Apple', 'Apple', 'Amazon', 'Netflix', 'Apple']) == [('Apple', 2), ('Amazon', 1), ('Netflix', 1)]
+nfe:  87
+avg nfe:  84.66666666666667
+====================
+
+====================
+answer:  To find the volume of a triangular prism, you need to calculate the area of the base (which is a triangle) and then multiply it by the height of the prism. The formula for the area of a triangle is \( \frac{1}{2} \times \text{base} \times \text{height} \).
+
+Here's the Python function to calculate the volume of a triangular prism:
+
+```python
+def find_Volume(base, height, prism_height):
+    # Calculate the area of the base (triangle)
+    base_area = 0.5 * base * height
+    # Calculate the volume of the prism
+    volume = base_area * prism_height
+    return volume
+```
+
+Now, let's test the function with the provided assertions:
+
+```python
+# Test cases
+assert find_Volume(10, 8, 6) == 240
+assert find_Volume(3, 2, 2) == 6
+assert find_Volume(1, 2, 1) == 1
+
+print("All tests passed!")
+```
+
+This function should correctly calculate the volume of a triangular prism for the given dimensions.
+nfe:  93
+avg nfe:  86.75
+====================
+
+====================
+answer:  def split_lowerstring(s):
+    result = []
+    for char in s:
+        if char.islower():
+            result.append(char)
+    return result
+
+nfe:  24
+avg nfe:  74.2
+====================
+
+====================
+answer:  def text_lowercase_underscore(text):
+    pattern = re.compile(r'([a-z]+)_')
+    matches = pattern.findall(text)
+    return matches
+
+# Test cases
+assert text_lowercase_underscore("aab_cbbbc") == ['aab_cbbbc']
+assert text_lowercase_underscore("aab_Abbbc") == ['aab_Abbbc']
+assert text_lowercase_underscore("Aaab_abbbc") == ['Aaab_abbbc']
+
+# The function uses a regular expression to find all sequences of lowercase letters followed by an underscore.
+# The pattern '([a-z]+)_' matches any sequence of lowercase letters followed by an underscore.
+# The findall() method returns a list of all matches found in the input text.
+
+# The test cases provided are incorrect. The expected output should be:
+# ['aab_cbbbc', 'aab_Abbbc', 'Aaab_abbbc']
+
+# The test cases provided are incorrect. The expected output should be:
+# ['aab_cbbbc', 'aab_Abbbc', 'Aaab_abbbc']
+
+
+nfe:  133
+avg nfe:  84.0
+====================
+
+====================
+answer:  def square_perimeter(side_length):
+    return 4 * side_length
+
+nfe:  19
+avg nfe:  74.71428571428571
+====================
+
+====================
+answer:  def remove_dirty_chars(str1, str2):
+    remove_set = set(str2)
+    result = []
+    for char in str1:
+        if char not in remove_set:
+            result.append(char)
+    return ''.join(result)
+
+# Test cases
+print("All tests passed!")
+assert remove_dirty_chars("probasscurve", "pros") == 'bacuve'
+assert remove_dirty_chars("digitalindia", "talent") == 'digiidi'
+assert remove_dirty_chars("exoticmiles", "toxic") == 'emles'
+
+This function `remove_dirty_chars` takes two strings as input and returns a new string by removing characters from the first string that are present in the second string. The function uses a set to store the characters of the second string for quick lookup and iterates through the characters of the first string, appending only those characters that are not in the set to the result list. Finally, the result list is joined into a string and returned.
+
+The test cases provided at the end of the code are used to verify the correctness of the function. If all assertions pass, it will print "All tests passed!".
+nfe:  127
+avg nfe:  81.25
+====================
+
+====================
+answer:  def test_duplicate(arr):
+    seen = set()
+    for num in arr:
+        if num in seen:
+            return True
+        seen.add(num)
+    return False
+
+nfe:  20
+avg nfe:  74.44444444444444
+====================
+
+====================
+answer:  def is_woodall(n):
+    # A woodball is a number that is the sum of the cubes of its digits
+    # For example, 383 is a woodball because 3^3 + 8^3 + 3^3 = 383
+    # 254 is not a woodball because 2^3 + 5^3 + 4^3 != 254
+    # 200 is not a woodball because 2^3 + 0^3 + 0^3 != 200
+
+    # Convert the number to a string to iterate over each digit
+    digits = str(n)
+    
+    # Calculate the sum of the cubes of the digits
+    sum_of_cubes = sum(int(digit) ** 3 for digit in digits)
+    
+    # Check if the sum of cubes equals the original number
+    return sum_of_cubes == n
+
+# Test cases
+assert is_woodall(383) == True
+assert is_woodall(254) == False
+assert is_woodall(200) == False
+# All tests passed!
+nfe:  101
+avg nfe:  77.1
+====================
+
+====================
+answer:  def multiples_of_num(n, m):
+    result = []
+    for i in range(m):
+        result.append(n * i)
+    return result
+
+# Test cases
+assert multiples_of_num(4, 3) == [3, 6, 9, 12]
+assert multiples_of_num(2, 5) == [5, 10]
+assert multiples_of_num(9, 2) == [2, 4, 6, 8, 10, 12, 14, 16, 18]
+nfe:  36
+avg nfe:  73.36363636363636
+====================
+
+====================
+answer:  def find_first_duplicate(nums):
+    seen = set()
+    for num in nums:
+        if num in seen:
+            return num
+        seen.add(num)
+    return -1
+
+nfe:  27
+avg nfe:  69.5
+====================
+
+====================
+answer:  def maximum_Sum(lst):
+    max_sum = 0
+    for sublist in lst:
+        current_sum = sum(sublist)
+        if current_sum > max_sum:
+            max_sum = current_sum
+    return max_sum
+
+# Test cases
+assert maximum_Sum([[1,2,3],[4,5,6],[10,11,12],[7,8,9]]) == 33
+assert maximum_Sum([[0,1,1],[1,1,2],[3,2,1]]) == 6
+assert maximum_Sum([[0,1,3],[1,2,1],[9,8,2],[0,1,0],[6,4,8]]) == 19
+
+print("All tests passed!")
+
+
+nfe:  94
+avg nfe:  71.38461538461539
+====================
+
+====================
+answer:  def binary_to_decimal(binary_str):
+    return int(binary_str, 2)
+
+nfe:  19
+avg nfe:  67.64285714285714
+====================
+
+====================
+answer:  def find_Product(arr, n):
+    product = 1
+    for i in range(n):
+        product *= arr[i]
+    return product
+
+nfe:  34
+avg nfe:  65.4
+====================
+
+====================
+answer:  def check_k_elements(tuples_list, k):
+    total_elements = len(tuples_list)
+    seen_elements = set()
+    for tuple in tuples_list:
+        seen_elements.update(tuple)
+    return len(seen_elements) == total_elements
+Generating...:  16%|█▌        | 16/100 [00:42<04:03,  2.90s/it]Generating...:  17%|█▋        | 17/100 [00:43<03:21,  2.42s/it]Generating...:  18%|█▊        | 18/100 [00:46<03:20,  2.44s/it]Generating...:  19%|█▉        | 19/100 [00:48<02:57,  2.19s/it]Generating...:  20%|██        | 20/100 [00:49<02:32,  1.91s/it]Generating...:  21%|██        | 21/100 [00:51<02:45,  2.09s/it]Generating...:  22%|██▏       | 22/100 [00:56<03:39,  2.82s/it]Generating...:  23%|██▎       | 23/100 [00:58<03:14,  2.53s/it]Generating...:  24%|██▍       | 24/100 [00:59<02:45,  2.17s/it]Generating...:  25%|██▌       | 25/100 [01:03<03:26,  2.76s/it]Generating...:  26%|██▌       | 26/100 [01:06<03:27,  2.81s/it]Generating...:  27%|██▋       | 27/100 [01:08<03:03,  2.51s/it]Generating...:  28%|██▊       | 28/100 [01:10<02:52,  2.39s/it]Generating...:  29%|██▉       | 29/100 [01:14<03:27,  2.93s/it]Generating...:  30%|███       | 30/100 [01:16<03:02,  2.61s/it]Generating...:  31%|███       | 31/100 [01:17<02:34,  2.24s/it]Generating...:  32%|███▏      | 32/100 [01:19<02:15,  1.99s/it]Generating...:  33%|███▎      | 33/100 [01:21<02:24,  2.15s/it]Generating...:  34%|███▍      | 34/100 [01:22<02:01,  1.84s/it]
+nfe:  171
+avg nfe:  72.0
+====================
+
+====================
+answer:  def remove_digits(strings):
+    result = []
+    for s in strings:
+        result.append(''.join(filter(str.isalpha, s)))
+    return result
+
+nfe:  33
+avg nfe:  69.70588235294117
+====================
+
+====================
+answer:  To calculate the binomial coefficient, you can use the formula:
+
+\[ \binom{n}{k} = \frac{n!}{k!(n-k)!} \]
+
+Here's a Python function to compute the binomial coefficient:
+
+```python
+import math
+
+def binomial_Coeff(n, k):
+    return math.factorial(n) // (math.factorial(k) * math.factorial(n - k))
+
+# Test cases
+assert binomial_Coeff(5, 2) == 10
+assert binomial_Coeff(4, 3) == 4
+assert binomial_Coeff(3, 2) == 3
+```
+
+This function uses the `math.factorial` function to compute the factorial of a number.
+nfe:  71
+avg nfe:  69.77777777777777
+====================
+
+====================
+answer:  def get_Odd_Occurrence(arr, n):
+    from collections import Counter
+    count = Counter(arr)
+    for value in count.values():
+        if value % 2 != 0:
+            return value
+    return None
+
+nfe:  42
+avg nfe:  68.3157894736842
+====================
+
+====================
+answer:  def count_Substring_With_Equal_Ends(s):
+    count = 0
+    for i in range(len(s)):
+        for j in range(i + 1, len(s)):
+            if s[i] == s[j]:
+                count += 1
+    return count
+
+nfe:  32
+avg nfe:  66.5
+====================
+
+====================
+answer:  import heapq as hq
+from collections import Counter
+
+def func(lists, k):
+    # Count the frequency of each integer across all lists
+    freq = Counter()
+    for lst in lists:
+        for num in lst:
+            freq[num] += 1
+    
+    # Use the heap queue to find the top k integers
+    top_k = hq.nlargest(k, freq.keys())
+    
+    return top_k
+
+nfe:  69
+avg nfe:  66.61904761904762
+====================
+
+====================
+answer:  def max_Prime_Factors(n):
+    if n <= 1:
+        return None
+    while n % 2 == 0:
+        n = n // 2
+    if n == 2:
+        return 2
+    for i in range(3, int(n**0.5) + 1, 2):
+        while n % i == 0:
+            n = n // i
+    if n > 2:
+        return n
+
+This function `max_Prime_Factors` finds the largest prime factor of a given number `n`. It first checks if `n` is less than or equal to 1, in which case it returns `None`. Then, it removes all factors of 2 from `n` as long as `n` is divisible by 2. If `n` is still 2, it returns 2 as the largest prime factor. Otherwise, it iterates through all odd numbers from 3 up to the square root of `n` and removes all factors of these numbers from `n`. If `n` is still greater than 2 after removing all possible factors, it returns `n` as the largest prime factor.
+nfe:  135
+avg nfe:  69.72727272727273
+====================
+
+====================
+answer:  def decimal_To_Binary(n):
+    if n == 0:
+        return "0"
+    binary_num = ""
+    while n > 0:
+        remainder = str(n % 2) + binary_num
+        n = n // 2
+    return binary_num
+
+# Test cases
+assert decimal_To_Binary(10) == "1010"
+assert decimal_To_Binary(1) == "1"
+assert decimal_To_Binary(20) == "10100"
+
+print("All tests passed!")
+nfe:  51
+avg nfe:  68.91304347826087
+====================
+
+====================
+answer:  def find_missing(arr, n):
+    length = len(arr)
+    expected_sum = n * (n + 1) // 2
+    actual_sum = sum(arr)
+    return expected_sum - actual_sum
+
+nfe:  34
+avg nfe:  67.45833333333333
+====================
+
+====================
+answer:  def find_rect_num(n):
+    return n * (n + 1) * 2
+
+nfe:  123
+avg nfe:  69.68
+====================
+
+====================
+answer:  def find_Nth_Digit(a, b, n):
+    # Convert the fraction to a decimal
+    fraction = a / b
+    # Find the decimal representation of the fraction
+    decimal_str = str(fraction)
+    # Return the nth digit
+    return decimal_str[n-1]
+
+# Test cases
+assert find_Nth_Digit(1, 2, 1) == 5
+assert find_Nth_Digit(3, 5, 1) == 6
+assert find_Nth_Digit(5, 6, 5) == 3
+
+print("All tests passed!")
+
+
+nfe:  84
+avg nfe:  70.23076923076923
+====================
+
+====================
+answer:  def sort_mixed_list(mixed_list):
+    # Separate integers and strings
+    integers = [item for item in mixed_list if isinstance(item, int)]
+    strings = [item for item in mixed_list if isinstance(item, str)]
+    
+    # Sort integers and strings individually
+    integers.sort()
+    strings.sort()
+    
+    # Combine sorted integers and strings
+    sorted_list = integers + strings
+    
+    return sorted_list
+
+nfe:  48
+avg nfe:  69.4074074074074
+====================
+
+====================
+answer:  def div_even_odd(lst):
+    if len(lst) == 0:
+        return 0
+    
+    first_even = None
+    first_odd = None
+    
+    for num in lst:
+        if first_even is None and num % 2 == 0:
+            first_even = num
+        if first_odd is None and num % 2 != 0:
+            first_odd = num
+    
+    if first_even is None or first_odd is None:
+        return 0
+    
+    return first_even // first_odd
+
+# Test cases
+assert div_even_odd([1, 3, 5, 7, 4, 1, 6, 8]) == 4
+assert div_even_odd([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) == 2
+assert div_even_odd([1, 5, 7, 9, 10]) == 10
+
+print("All test cases passed!")
+
+
+nfe:  59
+avg nfe:  69.03571428571429
+====================
+
+====================
+answer:  def rearange_string(s):
+    n = len(s)
+    if n < 2:
+        return s
+    
+    # Sort the string
+    sorted_s = sorted(s)
+    
+    # Find the first two different characters
+    for i in range(n - 1):
+        if sorted_s[i] != sorted_s[i + 1]:
+            # Swap the first two different characters
+            sorted_s[i], sorted_s[i + 1] = sorted_s[i + 1], sorted_s[i]
+            return ''.join(sorted_s)
+    
+    # If no two adjacent characters are different, return the original string
+    return s
+
+# Test cases
+assert rearange_string("aab") == 'aba'
+assert rearange_string("aabb") == 'abab'
+assert rearange_string("abccdd") == 'cdabcd'
+
+# Additional test cases
+assert rearange_string("abc") == 'abc'
+assert rearange_string("aa") == 'aa'
+assert rearange_string("ab") == 'ab'
+assert rearange_string("a") == 'a'
+assert rearange_string("") == 'a'
+nfe:  124
+avg nfe:  70.93103448275862
+====================
+
+====================
+answer:  from collections import Counter
+
+def freq_element(lst):
+    flat_list = []
+    for sublist in lst:
+        flat_list.extend(sublist)
+    frequency_dict = Counter(flat_list)
+    return frequency_dict
+
+# Test cases
+assert freq_element([[1, 2, 3, 2], [4, 5, 6, 2], [7, 1, 9, 5]]) == {2: 3, 1: 2, 5: 2, 3: 1, 4: 1, 6: 1, 7: 1, 9: 1}
+assert freq_element([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]) == {1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1
+nfe:  49
+avg nfe:  70.2
+====================
+
+====================
+answer:  def filter_evennumbers(numbers):
+    return list(filter(lambda x: x % 2 == 0, numbers))
+
+# Test cases
+assert filter_evennumbers([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) == [2, 4, 6, 8, 10]
+assert filter_evennumbers([10, 20, 45, 67, 84, 93]) == [10, 20, 84]
+assert filter_evennumbers([5, 7, 9, 8, 6, 4, 3]) == [8, 6, 4]
+
+print("All tests passed!")
+
+
+nfe:  35
+avg nfe:  69.06451612903226
+====================
+
+====================
+answer:  def find_Sum(arr, n):
+    total = 0
+    for i in range(n):
+        total += arr[i]
+    return total
+
+nfe:  36
+avg nfe:  68.03125
+====================
+
+====================
+answer:  import re
+
+def text_match(text):
+    pattern = r'([a-z]+)_([a-z]+)'
+    match = re.search(pattern, text)
+    if match:
+        return f"Found a match: {match.group(1)} and {match.group(2)}"
+    else:
+        return 'Not matched!'
+
+# Test cases
+assert text_match("aab_cbbbc") == 'Found a match: aab and cbbbc'
+assert text_match("aab_Abbbc") == 'Not matched!'
+assert text_match("Aaab_abbbc") == 'Not matched!'
+
+print("All tests passed!")
+
+
+nfe:  72
+avg nfe:  68.15151515151516
+====================
+
+====================
+answer:  def text_match_string(text):
+    if text.startswith("python"):
+        return "Found a match!"
+    else:
+        return "Not matched!"
+nfe:  27
+avg nfe:  66.94117647058823
+====================
+
+====================
+answer:  import math
+
+def get_gcd(arr):
+    gcd = 1
+    for num in arr:
+        gcd = math.gcd(gcd, num)
+    return gcd
+
+# Test cases
+assert get_gcd([2, 4, 6, 8, 16]) == 2
+assert get_gcd([1, 2, 3]) == 1
+assert get_gcd([2, 4, 6, 8]) == 2
+
+print("All tests passed!")
+```
+
+This function `get_gcd` iterates through the array and calculates the greatest common divisor (gcd) of all elements using the `math.gcd` function. The test cases provided are used to verify the correctness of the function.Generating...:  35%|███▌      | 35/100 [01:25<02:12,  2.05s/it]Generating...:  36%|███▌      | 36/100 [01:26<01:48,  1.70s/it]Generating...:  37%|███▋      | 37/100 [01:29<02:04,  1.98s/it]Generating...:  38%|███▊      | 38/100 [01:33<02:50,  2.76s/it]Generating...:  39%|███▉      | 39/100 [01:36<02:48,  2.76s/it]Generating...:  40%|████      | 40/100 [01:39<02:47,  2.79s/it]Generating...:  41%|████      | 41/100 [01:40<02:15,  2.30s/it]Generating...:  42%|████▏     | 42/100 [01:42<02:15,  2.34s/it]Generating...:  43%|████▎     | 43/100 [01:45<02:19,  2.45s/it]Generating...:  44%|████▍     | 44/100 [01:47<02:13,  2.38s/it]Generating...:  45%|████▌     | 45/100 [01:50<02:18,  2.52s/it]Generating...:  46%|████▌     | 46/100 [01:54<02:35,  2.88s/it]Generating...:  47%|████▋     | 47/100 [01:58<02:53,  3.27s/it]Generating...:  48%|████▊     | 48/100 [01:59<02:14,  2.58s/it]Generating...:  49%|████▉     | 49/100 [02:02<02:12,  2.60s/it]Generating...:  50%|█████     | 50/100 [02:07<02:53,  3.47s/it]
+nfe:  72
+avg nfe:  67.08571428571429
+====================
+
+====================
+answer:  def test_distinct(nums):
+    return len(set(nums)) == len(nums)
+
+nfe:  20
+avg nfe:  65.77777777777777
+====================
+
+====================
+answer:  def compute_Last_Digit(a, b):
+    # Compute the factorial of a
+    fact_a = 1
+    for i in range(a):
+        fact_a *= i
+    
+    # Compute the factorial of b
+    fact_b = 1
+    for i in range(b):
+        fact_b *= i
+    
+    # Find the last digit of the division
+    result = fact_a // fact_b
+    last_digit = result % 10
+    
+    return last_digit
+
+# Test cases
+assert compute_Last_Digit(2, 4) == 2
+assert compute_Last_Digit(6, 8) == 6
+assert compute_Last_Digit(1, 2) == 2
+
+print("All tests passed!")
+
+
+nfe:  75
+avg nfe:  66.02702702702703
+====================
+
+====================
+answer:  def odd_bit_set_number(n):
+    # Set all odd bits to 1
+    result = n | (n - 1)
+    return result
+
+nfe:  137
+avg nfe:  67.89473684210526
+====================
+
+====================
+answer:  def specified_element(matrix, index):
+    result = []
+    for row in matrix:
+        result.append(row[index])
+    return result
+
+# Test cases
+assert specified_element([[1, 2, 3, 2], [4, 5, 6, 2], [7, 1, 9, 5]], 0) == [1, 4, 7]
+assert specified_element([[1, 2, 3, 2], [4, 5, 6, 2], [7, 1, 9, 5]], 2) == [3, 6, 9]
+assert specified_element([[1, 2, 3, 2], [4, 5, 6, 2], [7, 1, 9, 5]], 1) == [2, 5, 1]
+
+# The function `specified_element` takes a 2D list (matrix) and an index, and returns a list of elements at the specified index from each row of the matrix.
+# The test cases provided at the end of the code verify that the function returns the expected results.
+nfe:  79
+avg nfe:  68.17948717948718
+====================
+
+====================
+answer:  def min_length_list(lst):
+    min_length = min(lst, key=lambda x: len(x))
+    return min_length, min_length
+
+# Test cases
+assert min_length_list([[0], [1, 3], [5, 7], [9, 11], [13, 15, 17]]) == (1, [0])
+assert min_length_list([[1, 2, 3, 4, 5], [1, 2, 3, 4], [1, 2, 3], [1,2], [1]]) == (1, [1])
+assert min_length_list([[3, 4, 5], [6, 7, 8, 9], [10, 11, 12], [1, 2]]) == (2, [1, 2])
+
+This function `min_length_list` takes a list of lists and returns a tuple containing the length of the list with the minimum length and the list itself. The `min` function is used with a lambda function as the key to find the list with the minimum length. The test cases are provided.
+nfe:  81
+avg nfe:  68.5
+====================
+
+====================
+answer:  def check_equilateral(a, b, c):
+    if a == b and b == c and a == c:
+        return True
+    else:
+        return False
+
+nfe:  29
+avg nfe:  67.53658536585365
+====================
+
+====================
+answer:  To calculate the area of a parallelogram, you can use the formula:
+
+\[ \text{Area} = \text{base} \times \text{height} \]
+
+Here's a Python function that implements this formula:
+
+```python
+def parallelogram_area(base, height):
+    return base * height
+```
+
+Now, let's write the tests to ensure the function works correctly:
+
+```python
+# Test cases
+assert parallelogram_area(10, 20) == 200
+assert parallelogram_area(15, 20) == 300
+assert parallelogram_area(8, 9) == 72
+```
+
+This function will calculate the area of a parallelogram given the base and height. The tests provided verify that the function works correctly.
+nfe:  69
+avg nfe:  67.57142857142857
+====================
+
+====================
+answer:  ```python
+def check_Equality(s):
+    if len(s) == 1:
+        return "Equal"
+    return s[0] == s[-1] and "Equal" or "Not Equal"
+
+# Test cases
+assert check_Equality("abcda") == "Equal"
+assert check_Equality("ab") == "Not Equal"
+assert check_Equality("mad") == "Not Equal"
+```
+
+This function `check_Equality` takes a string `s` as input and checks if the first and last characters of the string are equal. If the string has only one character, it returns "Equal" because the first and last characters are the same. Otherwise, it returns "Not Equal".
+nfe:  77
+avg nfe:  67.79069767441861
+====================
+
+====================
+answer:  def counting_sort(arr):
+    max_val = max(arr)
+    min_val = min(arr)
+    range = max_val - min_val + 1
+    count = [0] * range
+    
+    for num in arr:
+        count[num - min_val] += 1
+    
+    output_arr = []
+    for i in range(range):
+        for j in range(count[i]):
+            output_arr.append(i + min_val)
+    
+    return output_arr
+
+# Test cases
+assert counting_sort([1, 23, 4, 5, 6, 7, 8]) == [1, 4, 5, 6, 7, 8, 23]
+assert counting_sort([12, 9, 28, 33, 69, 45]) == [9, 12, 28, 33, 45, 69]
+assert counting_sort([8, 4, 14, 3, 2, 1]) == [1, 2, 3, 4, 8, 14]
+nfe:  61
+avg nfe:  67.63636363636364
+====================
+
+====================
+answer:  To find the t-nth term of a geometric series, you can use the formula:
+
+\[ a_n = a \times r^{(n-1)} \]
+
+where:
+- \( a \) is the first term,
+- \( r \) is the common ratio,
+- \( n \) is the term number.
+
+Here's a Python function to calculate the t-nth term of a geometric series:
+
+```python
+def tn_gp(a, r, n):
+    return a * (r ** (n - 1))
+```
+
+This function should pass the given tests:
+
+```python
+assert tn_gp(1, 5, 2) == 16
+assert tn_gp(1, 5, 4) == 256
+assert tn_gp(2, 6, 3) == 486
+```
+
+Let's run the tests to ensure the function works correctly:
+
+```python
+assert tn_gp(1, 5, 2) == 16
+assert tn_gp(1, 5, 4) == 256
+assert tn_gp(2, 6, 3) ==
+nfe:  82
+avg nfe:  67.95555555555555
+====================
+
+====================
+answer:  ```python
+def check(n):
+    # Convert the number to a string
+    num_str = str(n)
+    
+    # Reverse the string
+    reversed_str = num_str[::-1]
+    
+    # Convert the reversed string back to an integer
+    reversed_num = int(reversed_str)
+    
+    # Check if the original number is one less than twice the reversed number
+    return n == 2 * reversed_num - 1
+
+# Test cases
+assert check(70) == False
+assert check(23) == False
+assert check(73) == True
+```
+
+This function `check` takes an integer `n` as input and checks if it is one less than twice its reverse. The function works as follows:
+1. Convert the number to a string.
+2. Reverse the string.
+3. Convert the reversed string back to an integer.
+4. Check if the original number is one less than twice the reversed number.
+
+The test cases provided at the end of the code are correct, as 70 and 23 are not one less than twice their reverse, while 73 is one less than twice its reverse.
+nfe:  110
+avg nfe:  68.8695652173913
+====================
+
+====================
+answer:  def find_Max_Num(digits, n):
+    # Sort the digits in descending order
+    digits.sort(reverse=True)
+    
+    # Initialize the largest number
+    largest_number = ""
+    
+    # Form the largest number by concatenating the sorted digits
+    for i in range(n):
+        largest_number += digits[i]
+    
+    return largest_number
+
+# Test cases
+assert find_Max_Num([1, 2, 3], 3) == 321
+assert find_Max_Num([4, 5, 6, 1], 4) == 6541
+assert find_Max_Num([1, 2, 3, 9], 4) == 9321
+
+print("All tests passed!")
+
+
+nfe:  125
+avg nfe:  70.06382978723404
+====================
+
+====================
+answer:  def opposite_Signs(a, b):
+    return (a > 0 and b < 0) or (a < 0 and b > 0)
+nfe:  22
+avg nfe:  69.0625
+====================
+
+====================
+answer:  To find the nth octagonal number, you can use the formula:
+
+\[ O(n) = \frac{3n^2 - 2n}{2} \]
+
+Here's a Python function to compute the nth octagonal number:
+
+```python
+def is_octagonal(n):
+    return (3 * n**2 - 2 * n) // 2
+
+# Test cases
+assert is_octagonal(5) == 65
+assert is_octagonal(10) == 280
+assert is_octagonal(15) == 645
+```
+
+This function `is_octagonal` takes an integer `n` as input and returns the nth octagonal number using the formula provided.
+nfe:  76
+avg nfe:  69.20408163265306
+====================
+
+====================
+answer:  def max_len_sub(arr, k):
+    max_len = 0
+    current_len = 0
+    for i in range(k):
+        if arr[i] - arr[i - k] == 1:
+            current_len += 1
+        else:
+            current_len = 1
+        max_len = max(max_len, current_len)
+    return max_len
+
+nfe:  165
+avg nfe:  71.12
+====================
+
+====================
+answer:  def count_Substrings(s, n):
+    count = 0
+    for i in range(n):
+        for j in range(i, n + 1):
+            substring = s[i:j+1]
+            if sum(int(digit) for digit in substring) == len(substring):
+                count += 1
+    return count
+Generating...:  51%|█████     | 51/100 [02:09<02:21,  2.90s/it]Generating...:  52%|█████▏    | 52/100 [02:10<01:54,  2.38s/it]Generating...:  53%|█████▎    | 53/100 [02:13<02:03,  2.63s/it]Generating...:  54%|█████▍    | 54/100 [02:18<02:30,  3.27s/it]Generating...:  55%|█████▌    | 55/100 [02:21<02:27,  3.27s/it]Generating...:  56%|█████▌    | 56/100 [02:22<01:52,  2.55s/it]Generating...:  57%|█████▋    | 57/100 [02:24<01:44,  2.43s/it]Generating...:  58%|█████▊    | 58/100 [02:25<01:28,  2.11s/it]Generating...:  59%|█████▉    | 59/100 [02:26<01:12,  1.77s/it]Generating...:  60%|██████    | 60/100 [02:30<01:28,  2.22s/it]Generating...:  61%|██████    | 61/100 [02:32<01:28,  2.26s/it]Generating...:  62%|██████▏   | 62/100 [02:36<01:50,  2.90s/it]Generating...:  63%|██████▎   | 63/100 [02:39<01:42,  2.78s/it]Generating...:  64%|██████▍   | 64/100 [02:40<01:21,  2.27s/it]Generating...:  65%|██████▌   | 65/100 [02:41<01:10,  2.02s/it]Generating...:  66%|██████▌   | 66/100 [02:43<01:01,  1.82s/it]
+nfe:  41
+avg nfe:  70.52941176470588
+====================
+
+====================
+answer:  def smallest_num(nums):
+    if not nums:
+        return None
+    min_num = nums[0]
+    for num in nums:
+        if num < min_num:
+            min_num = num
+    return min_num
+
+nfe:  29
+avg nfe:  69.73076923076923
+====================
+
+====================
+answer:  def max_difference(tuples_list):
+    max_diff = 0
+    for pair in tuples_list:
+        max_diff = max(max_diff, pair[1] - pair[0])
+    return max_diff
+
+# Test cases
+assert max_difference([(3, 5), (1, 7), (10, 3), (1, 2)]) == 7
+assert max_difference([(4, 6), (2, 17), (9, 13), (11, 12)]) == 15
+assert max_difference([(12, 35), (21, 27), (13, 23), (41, 22)]) == 23
+
+print("All tests passed!")
+
+This function `max_difference` iterates through each tuple in the list and calculates the difference between the first and second elements of each tuple. It keeps track of the maximum difference found so far. Finally, it returns the maximum difference.
+
+The test cases provided are used to verify the correctness of the function. If all assertions pass, it prints "All tests passed!".
+nfe:  93
+avg nfe:  70.16981132075472
+====================
+
+====================
+answer:  def subject_marks(subjects):
+    return sorted(subjects, key=lambda x: x[1])
+
+nfe:  141
+avg nfe:  71.48148148148148
+====================
+
+====================
+answer:  def recursive_list_sum(lst):
+    total = 0
+    for element in lst:
+        if isinstance(element, list):
+            total += recursive_list_sum(element)
+        else:
+            total += element
+    return total
+
+# Test cases
+assert recursive_list_sum(([1, 2, [3, 4], [5, 6]])) == 21
+assert recursive_list_sum(([7, 10, [15, 14], [19, 41]])) == 106
+assert recursive_list_sum(([10, 20, [30, 40], [50, 60]])) == 210
+
+print("All tests passed!")
+```
+
+This function `recursive_list_sum` iterates through each element in the list. If the element is a list, it recursively calls itself to sum the elements of that sublist. If the element is not a list, it simply adds the element to the total. The test cases provided at the end of the code ensure that the function works correctly. If all assertions pass, the message "All tests passed!" will be printed.
+nfe:  95
+avg nfe:  71.9090909090909
+====================
+
+====================
+answer:  def pos_count(lst):
+    count = 0
+    for num in lst:
+        if num > 0:
+            count += 1
+    return count
+
+nfe:  20
+avg nfe:  70.98214285714286
+====================
+
+====================
+answer:  def bell_number(n):
+    if n == 0:
+        return 1
+    elif n == 1:
+        return 1
+    else:
+        result = 1
+        for i in range(2, n + 1):
+            result += i * bell_number(i - 1)
+        return result
+
+# Test cases
+assert bell_number(2) == 2
+assert bell_number(10) == 115975
+assert bell_number(56) == 6775685320645824322581483068371419745979053216268760300
+
+print("All tests passed!")
+nfe:  58
+avg nfe:  70.75438596491227
+====================
+
+====================
+answer:  def is_Monotonic(arr):
+    if len(arr) <= 1:
+        return True
+    for i in range(1, len(arr)):
+        if arr[i] < arr[i-1]:
+            return False
+    return True
+
+nfe:  35
+avg nfe:  70.13793103448276
+====================
+
+====================
+answer:  def is_sublist(lst, sublist):
+    return sublist in lst
+
+nfe:  23
+avg nfe:  69.33898305084746
+====================
+
+====================
+answer:  def get_equal(tuples, expected_length):
+    if len(tuples) == expected_length:
+        return 'All tuples have same length'
+    else:
+        return 'All tuples do not have same length'
+
+# Test cases
+assert get_equal([(11, 22, 33), (44, 55, 66)], 3) == 'All tuples have same length'
+assert get_equal([(1, 2, 3), (4, 5, 6, 7)], 3) == 'All tuples do not have same length'
+assert get_equal([(1, 2), (3, 4)], 2) == 'All tuples have same length'
+
+This function `get_equal` takes a list of tuples and an expected length as input. It checks if the length of the list of tuples matches the expected length. If it does, it returns 'All tuples have same length'; otherwise, it returns 'All tuples do not have same length'.
+
+The test cases provided at the end of the code are used to verify the correctness of the function. If all assertions pass, the function is working correctly.
+nfe:  94
+avg nfe:  69.75
+====================
+
+====================
+answer:  def comb_sort(arr):
+    n = len(arr)
+    combs = []
+    for i in range(n):
+        combs.append(arr[i])
+        for j in range(i+1, n):
+            combs.append(arr[i] + arr[j])
+    combs.sort()
+    return combs
+
+# Test cases
+assert comb_sort([5, 15, 37, 25, 79]) == [5, 15, 25, 37, 79]
+assert comb_sort([41, 32, 15, 19, 22]) == [15, 19, 22, 32, 41]
+assert comb_sort([99, 15, 13, 47]) == [13, 15, 47, 99]
+nfe:  65
+avg nfe:  69.67213114754098
+====================
+
+====================
+answer:  To determine if a given number can be represented as the difference of two squares, we can use the property that a number can be expressed as the difference of two squares if and only if it is of the form \(4a^2 + 1\) for some integer \(a\).
+
+Here's the Python function to check this:
+
+```python
+def dif_Square(n):
+    if n % 4 == 0:
+        return False
+    a = int(n ** 0.5)
+    return a * a + 1 == n
+
+# Test cases
+assert dif_Square(5) == True
+assert dif_Square(10) == False
+assert dif_Square(15) == True
+```
+
+This function works as follows:
+1. It first checks if \(n\) is even. If it is, \(n\) cannot be expressed as the difference of two squares.
+2. It then calculates the integer part of the square root of \(n\).
+3. It checks if \(a^2 + 1\) equals \(n\). If it does, \(n\) can be expressed as the difference of two squares; otherwise, it cannot.
+nfe:  130
+avg nfe:  70.64516129032258
+====================
+
+====================
+answer:  import re
+
+def multiple_split(s):
+    # Use regex to match multiple delimiters
+    pattern = re.compile(r'[\n,|]')
+    # Split the string based on the pattern
+    result = pattern.split(s)
+    return result
+
+# Test cases
+print(multiple_split('Forces of the \ndarkness*are coming into the play.'))  # Output: ['Forces of the ', 'darkness', 'are coming into the play.']
+print(multiple_split('Mi Box runs on the \n Latest android*which has google assistance and chromecast.'))  # Output: ['Mi Box runs on the ', ' Latest android', 'which has google assistance and chromecast.']
+print(multiple_split('Certain services\nare subjected to change*over the seperate subscriptions.'))  # Output: ['Certain services', 'are subjected to change', 'over the seperate subscriptions.']
+
+print("All tests passed!")
+
+nfe:  69
+avg nfe:  70.61904761904762
+====================
+
+====================
+answer:  def is_samepatterns(patterns1, patterns2):
+    if len(patterns1) != len(patterns2):
+        return False
+    for i in range(len(patterns1)):
+        if patterns1[i] != patterns2[i]:
+            return False
+    return True
+
+nfe:  26
+avg nfe:  69.921875
+====================
+
+====================
+answer:  def find_tuples(tuples_list, k):
+    result = []
+    for tup in tuples_list:
+        if all(x % k == 0 for x in tup):
+            result.append(tup)
+    return result
+
+# Test cases
+assert find_tuples([(6, 24, 12), (7, 9, 6), (12, 18, 21)], 6) == [(6, 24, 12)]
+assert find_tuples([(5, 25, 30), (4, 2, 3), (7, 8, 9)], 5) == [(5, 25, 30)]
+assert find_tuples([(7, 9, 16), (8, 16, 4), (19, 17, 18)], 4) == [(8, 16, 4)]
+nfe:  36
+avg nfe:  69.4
+====================
+
+====================
+answer:  def count_Squares(width, height):
+    count = 0
+    for i in range(width):
+        for j in range(height):
+            count += 1
+    return count
+
+nfe:  34
+avg nfe:  68.86363636363636
+====================
+
+====================
+answer:  def is_Diff(n):
+    even_sum = 0
+    odd_sum = 0
+    
+    for digit in str(n):
+        if int(digit) % 2 == 0:
+            even_sum += int(digit)
+        else:
+            odd_sum += int(digit)
+    
+    return even_sum - odd_sum == 0
+
+# Test cases
+assert is_Diff(12345) == False
+assert is_Diff(1212112) == True
+assert is_Diff(1212) == False
+
+print("All tests passed!")
+
+This function `is_Diff` takes an integer `n` as input and calculates the sum of even and odd digits. It then checks if the difference between these sums is zero. If the difference is zero, it returns `True`; otherwise, it returns `False`.
+
+The test cases provided at the end of the code ensure that the function works as expected. If you run this code, it will print "All tests passed!" if all assertions are true. If any assertion fails, an `AssertionError` will be raised, and the program will stop running.Generating...:  67%|██████▋   | 67/100 [02:47<01:24,  2.56s/it]Generating...:  68%|██████▊   | 68/100 [02:48<01:08,  2.15s/it]Generating...:  69%|██████▉   | 69/100 [02:49<00:54,  1.77s/it]Generating...:  70%|███████   | 70/100 [02:52<01:00,  2.01s/it]Generating...:  71%|███████   | 71/100 [02:53<00:50,  1.73s/it]Generating...:  72%|███████▏  | 72/100 [02:56<00:57,  2.04s/it]Generating...:  73%|███████▎  | 73/100 [02:57<00:48,  1.79s/it]Generating...:  74%|███████▍  | 74/100 [03:02<01:09,  2.67s/it]Generating...:  75%|███████▌  | 75/100 [03:04<01:05,  2.61s/it]Generating...:  76%|███████▌  | 76/100 [03:08<01:12,  3.04s/it]Generating...:  77%|███████▋  | 77/100 [03:09<00:57,  2.49s/it]Generating...:  78%|███████▊  | 78/100 [03:11<00:49,  2.27s/it]Generating...:  79%|███████▉  | 79/100 [03:14<00:51,  2.44s/it]Generating...:  80%|████████  | 80/100 [03:15<00:39,  1.98s/it]Generating...:  81%|████████  | 81/100 [03:16<00:35,  1.85s/it]Generating...:  82%|████████▏ | 82/100 [03:19<00:37,  2.11s/it]Generating...:  83%|████████▎ | 83/100 [03:20<00:28,  1.70s/it]
+nfe:  128
+avg nfe:  69.74626865671642
+====================
+
+====================
+answer:  def count_With_Odd_SetBits(n):
+    count = 0
+    for i in range(1, n + 1):
+        if bin(i).count('1') % 2 != 0:
+            count += 1
+    return count
+
+nfe:  29
+avg nfe:  69.1470588235294
+====================
+
+====================
+answer:  ```python
+def word_len(word):
+    return len(word) % 2 != 0
+```
+nfe:  20
+avg nfe:  68.43478260869566
+====================
+
+====================
+answer:  To find the nth tetrahedral number, you can use the formula:
+
+\[ T_n = \frac{n(n+1)(n+2)}{6} \]
+
+Here's a Python function to compute the nth tetrahedral number:
+
+```python
+def tetrahedral_number(n):
+    return n * (n + 1) * (n + 2) / 6
+
+# Tests
+assert tetrahedral_number(5) == 35.0
+assert tetrahedral_number(6) == 56.0
+assert tetrahedral_number(7) == 84.0
+```
+
+This function ` tetrahedral_number` takes an integer `n` as input and returns the nth tetrahedral number using the given formula. The tests provided ensure that the function works correctly.
+nfe:  72
+avg nfe:  68.48571428571428
+====================
+
+====================
+answer:  def zip_tuples(tup1, tup2):
+    return list(zip(tup1, tup2))
+
+# Test cases
+assert zip_tuples((7, 8, 4, 5, 9, 10), (1, 5, 6)) == [(7, 1), (8, 5), (4, 6), (5, 1), (9, 5), (10, 6)]
+assert zip_tuples((8, 9, 5, 6, 10, 11), (2, 6, 7)) == [(8, 2), (9, 6), (5, 7), (6, 2), (10, 6), (11, 7)]
+assert zip_tuples((9, 10, 6, 7, 11, 12), (3, 7, 8)) == [(9, 3), (10, 7), (6, 8), (7, 3), (11, 7), (12, 8)]
+nfe:  25
+avg nfe:  67.87323943661971
+====================
+
+====================
+answer:  import math
+
+def volume_sphere(radius):
+    volume = (4/3) * math.pi * (radius ** 3)
+    return volume
+
+# Test cases
+assert volume_sphere(10) == 4188.790204786391
+assert volume_sphere(25) == 65449.84694978735
+assert volume_sphere(20) == 33510.32163829113
+
+print("All tests passed!")
+```
+
+This code defines a function `volume_sphere` that calculates the volume of a sphere given its radius. The function uses the formula for the volume of a sphere, which is \( V = \frac{4}{3} \pi r^3 \). The test cases provided are used to verify the correctness of the function.
+nfe:  79
+avg nfe:  68.02777777777777
+====================
+
+====================
+answer:  def get_Char(s):
+    total = 0
+    for char in s:
+        total += ord(char)
+    return chr(total)
+
+nfe:  30
+avg nfe:  67.5068493150685
+====================
+
+====================
+answer:  To find the n-th number in the Newton Conway sequence, we need to understand the pattern of the sequence. The Newton Conway sequence is defined as follows:
+
+- \( a_1 = 1 \)
+- \( a_2 = 1 \)
+- \( a_3 = 2 \)
+- \( a_4 = 3 \)
+- \( a_5 = 4 \)
+- \( a_6 = 5 \)
+- \( a_7 = 6 \)
+- \( a_8 = 7 \)
+- \( a_9 = 8 \)
+- ...
+
+Given this pattern, we can write a function to find the n-th number in the sequence.
+
+Here is the function:
+
+```python
+def sequence(n):
+    return (n - 1) % 2 + 1
+```
+
+This function should pass the given tests:
+
+```python
+assert sequence(10) == 6
+assert sequence(2) == 1
+assert sequence(3) == 2
+```
+
+The function uses the formula `(n-1) % 2 + 1` to compute the n-th number in the sequence.
+nfe:  142
+avg nfe:  68.51351351351352
+====================
+
+====================
+answer:  import math
+
+def surfacearea_sphere(radius):
+    return 4 * math.pi * (radius ** 2)
+
+# Test cases
+assert surfacearea_sphere(10) == 1256.6370614359173
+assert surfacearea_sphere(15) == 2827.4333882308138
+assert surfacearea_sphere(20) == 5026.548245743669
+
+print("All tests passed!")
+
+```
+
+This function `surfacearea_sphere` calculates the surface area of a sphere using the formula \( \text{Surface Area} = 4\pi r^2 \), where \( r \) is the radius of the sphere. The test cases provided are used to verify the correctness of the function.
+nfe:  70
+avg nfe:  68.53333333333333
+====================
+
+====================
+answer:  To find the nth centered hexagonal number, you can use the formula:
+
+\[ \text{centered\_hexagonal\_number}(n) = \frac{3n^2 + 2n - 1}{2} \]
+
+Here's a Python function to compute this:
+
+```python
+def centered_hexagonal_number(n):
+    return (3 * n**2 + 2 * n - 1) // 2
+
+# Tests
+assert centered_hexagonal_number(10) == 271
+assert centered_hexagonal_number(2) == 7
+assert centered_hexagonal_number(9) == 217
+```
+
+This function should pass the given tests. Let's break down the function:
+
+1. The function `centered_hexagonal_number` takes an integer `n` as input.
+2. It computes the value using the formula \( 3n^2 + 2n - 1 \).
+3. The result is then divided by 2 to get the nth centered hexagonal number.
+4. The function returns the computed value.
+
+You can run the provided tests to verify that the function works correctly for the given inputs.
+nfe:  119
+avg nfe:  69.19736842105263
+====================
+
+====================
+answer:  def merge_dictionaries_three(dict1, dict2, dict3):
+    merged_dict = {}
+    for key, value in dict1.items():
+        merged_dict[key] = value
+    for key, value in dict2.items():
+        merged_dict[key] = value
+    for key, value in dict3.items():
+        merged_dict[key] = value
+    return merged_dict
+
+nfe:  28
+avg nfe:  68.66233766233766
+====================
+
+====================
+answer:  def freq_count(lst):
+    frequency = {}
+    for item in lst:
+        if item not in frequency:
+            frequency[item] = 1
+        else:
+            frequency[item] += 1
+    return frequency
+
+# Test cases
+assert freq_count([10, 10, 10, 10, 20, 20, 20, 20, 40, 40, 50, 50, 30]) == {10: 4, 20: 4, 40: 2, 50: 2, 30: 1}
+assert freq_count([1, 2, 3, 4, 3, 2, 4, 1, 3, 1, 4]) == {1: 3, 2: 2, 3: 3, 4: 3}
+assert freq_count([5, 6, 7, 4, 9, 10, 4, 5, 6, 7, 9, 5]) == {10
+nfe:  46
+avg nfe:  68.37179487179488
+====================
+
+====================
+answer:  def closest_num(n):
+    if n == 0:
+        return 0
+    elif n == 1:
+        return 1
+    elif n == 2:
+        return 1
+    elif n == 3:
+        return 2
+    elif n == 4:
+        return 2
+    elif n == 5:
+        return 3
+    elif n == 6:
+        return 3
+    elif n == 7:
+        return 4
+    elif n == 8:
+        return 4
+    elif n == 9:
+        return 5
+    elif n == 10:
+        return 5
+    elif n == 11:
+        return 6
+    elif n == 12:
+        return 6
+    elif n == 13:
+        return 7
+    elif n == 14:
+        return 7
+    elif n == 15:
+        return 8
+    elif n == 16:
+        return 8
+    else:
+        return n - 1
+    return 0
+
+
+nfe:  82
+avg nfe:  68.54430379746836
+====================
+
+====================
+answer:  def len_log(words):
+    max_length = 0
+    for word in words:
+        if len(word) > max_length:
+            max_length = len(word)
+    return max_length
+
+nfe:  21
+avg nfe:  67.95
+====================
+
+====================
+answer:  def find_substring(strings, substring):
+    for string in strings:
+        if substring in string:
+            return True
+    return False
+
+# Test cases
+assert find_substring(["red", "black", "white", "green", "orange"], "ack") == True
+assert find_substring(["red", "black", "white", "green", "orange"], "abc") == False
+assert find_substring(["red", "black", "white", "green", "orange"], "ange") == True
+
+print("All tests passed!")
+
+```
+nfe:  40
+avg nfe:  67.60493827160494
+====================
+
+====================
+answer:  def is_undulating(s):
+    # Convert the string to a list of digits
+    digits = list(s)
+    
+    # Check if the length is even
+    if len(digits) % 2 != 0:
+        return False
+    
+    # Check if the digits alternate
+    for i in range(len(digits) - 1):
+        if digits[i] == digits[i + 1]:
+            return False
+    
+    return True
+
+# Test cases
+assert is_undulating("1212121") == True
+assert is_undulating("1991") == False
+assert is_undulating("121") == True
+
+print("All tests passed!")
+nfe:  78
+avg nfe:  67.73170731707317
+====================
+
+====================
+answer:  def power(a, b):
+    return a ** b
+
+nfe:  15
+avg nfe:  67.09638554216868
+====================
+
+====================
+answer:  def index_minimum(tuples):
+    if not tuples:
+        return None
+    
+    # Sort the list of tuples based on the second element of each tuple
+    sorted_tuples = sorted(tuples, key=lambda x: x[1])
+    
+    # Return the first element of the sorted list, which is the tuple with the minimum value
+    return sorted_tuples[0][0]
+
+# Test cases
+assert index_minimum([('Rash', 143), ('Manjeet', 200), ('Varsha', 100)]) == 'Varsha'
+assert index_minimum([('Yash', 185), ('Dawood', 125), ('Sanya', 175)]) == 'Dawood'
+assert index_minimum([('Sai', 345), ('Salman', 145), ('Ayesha', 96)]) == 'Ayesha'Generating...:  84%|████████▍ | 84/100 [03:22<00:29,  1.84s/it]Generating...:  85%|████████▌ | 85/100 [03:23<00:24,  1.62s/it]Generating...:  86%|████████▌ | 86/100 [03:26<00:28,  2.05s/it]Generating...:  87%|████████▋ | 87/100 [03:28<00:25,  1.94s/it]Generating...:  88%|████████▊ | 88/100 [03:29<00:20,  1.73s/it]Generating...:  89%|████████▉ | 89/100 [03:32<00:22,  2.08s/it]Generating...:  90%|█████████ | 90/100 [03:36<00:26,  2.70s/it]Generating...:  91%|█████████ | 91/100 [03:38<00:22,  2.50s/it]Generating...:  92%|█████████▏| 92/100 [03:39<00:16,  2.07s/it]Generating...:  93%|█████████▎| 93/100 [03:41<00:14,  2.08s/it]Generating...:  94%|█████████▍| 94/100 [03:44<00:13,  2.27s/it]Generating...:  95%|█████████▌| 95/100 [03:45<00:09,  1.92s/it]Generating...:  96%|█████████▌| 96/100 [03:48<00:08,  2.14s/it]Generating...:  97%|█████████▋| 97/100 [03:49<00:05,  1.90s/it]Generating...:  98%|█████████▊| 98/100 [03:52<00:04,  2.27s/it]Generating...:  99%|█████████▉| 99/100 [03:57<00:03,  3.03s/it]Generating...: 100%|██████████| 100/100 [04:02<00:00,  3.69s/it]Generating...: 100%|██████████| 100/100 [04:02<00:00,  2.43s/it]
+
+nfe:  60
+avg nfe:  67.01190476190476
+====================
+
+====================
+answer:  def Find_Min_Length(lst):
+    min_length = float('inf')
+    for sublist in lst:
+        min_length = min(min_length, len(sublist))
+    return min_length
+
+nfe:  27
+avg nfe:  66.54117647058824
+====================
+
+====================
+answer:  To find the number of divisors of a given integer, you can use a simple loop to iterate through all possible divisors and count them. Here's a Python function that accomplishes this:
+
+```python
+def divisor(n):
+    count = 0
+    for i in range(1, n + 1):
+        if n % i == 0:
+            count += 1
+    return count
+
+# Test cases
+assert divisor(15) == 4
+assert divisor(12) == 6
+assert divisor(9) == 3
+```
+
+This function works by iterating through all possible divisors from 1 to `n` and checking if `n` is divisible by each of them. If it is, the function increments the count. Finally, it returns the total count of divisors.
+
+
+nfe:  88
+avg nfe:  66.79069767441861
+====================
+
+====================
+answer:  def frequency_lists(lst):
+    from collections import Counter
+    frequency_dict = {}
+    for sublist in lst:
+        for item in sublist:
+            if item in frequency_dict:
+                frequency_dict[item] += 1
+            else:
+                frequency_dict[item] = 1
+    return frequency_dict
+
+nfe:  43
+avg nfe:  66.51724137931035
+====================
+
+====================
+answer:  def multiply_num(numbers):
+    product = 1
+    for num in numbers:
+        product *= num
+    return product / len(numbers)
+
+nfe:  30
+avg nfe:  66.10227272727273
+====================
+
+====================
+answer:  def decimal_to_binary(n):
+    if n == 0:
+        return '0'
+    binary_str = ''
+    while n > 0:
+        remainder = n % 2
+        binary_str = str(remainder) + binary_str
+        n = n // 2
+    return binary_str
+
+# Test cases
+assert decimal_to_binary(8) == '1000'
+assert decimal_to_binary(18) == '10010'
+assert decimal_to_binary(7) == '111'
+
+print("All tests passed!")
+
+This function `decimal_to_binary` converts a decimal number to its binary equivalent by repeatedly dividing the number by 2 and recording the remainders. It then returns the resulting binary string.
+nfe:  84
+avg nfe:  66.30337078651685
+====================
+
+====================
+answer:  def next_smallest_palindrome(n):
+    def is_palindrome(s):
+        return s == s[::-1]
+    
+    n = str(n)
+    while not is_palindrome(n):
+        n += 1
+    
+    return int(n)
+
+# Test cases
+assert next_smallest_palindrome(99) == 101
+assert next_smallest_palindrome(1221) == 1331
+assert next_smallest_palindrome(120) == 121
+
+print("All tests passed!")
+
+This function `next_smallest_palindrome` takes an input number `n` and finds the next smallest palindrome greater than `n`. It uses a helper function `is_palindrome` to check if a given string is a palindrome. The main function then converts the input number to a string and increments it until it finds a palindrome. Finally, it returns the palindrome as an integer.
+
+The test cases provided are used to verify the correctness of the function. If all assertions pass, the function is working correctly.
+nfe:  123
+avg nfe:  66.93333333333334
+====================
+
+====================
+answer:  def kth_element(arr, n, k):
+    if k < 1 or k > n:
+        raise ValueError("k is out of bounds")
+    return arr[k-1]
+
+# Test cases
+assert kth_element([12, 3, 5, 7, 19], 5, 2) == 3
+assert kth_element([17, 24, 8, 23], 4, 3) == 8
+assert kth_element([16, 21, 25, 36, 4], 5, 4) == 36
+
+print("All tests passed!")
+
+
+nfe:  56
+avg nfe:  66.81318681318682
+====================
+
+====================
+answer:  def snake_to_camel(snake_str):
+    words = snake_str.split('_')
+    camel_str = ''.join(word.capitalize() for word in words)
+    return camel_str
+
+nfe:  25
+avg nfe:  66.3586956521739
+====================
+
+====================
+answer:  def eulerian_num(n, m):
+    # Eulerian number a(n, m) is defined as (n * m) + (n + m)
+    return (n * m) + (n + m)
+
+# Test cases
+assert eulerian_num(3, 1) == 4
+assert eulerian_num(4, 1) == 11
+assert eulerian_num(5, 3) == 26
+
+print("All tests passed!")
+nfe:  58
+avg nfe:  66.26881720430107
+====================
+
+====================
+answer:  def sort_sublists(sublists):
+    return sorted(sublists, key=lambda x: sorted(x))
+
+nfe:  77
+avg nfe:  66.38297872340425
+====================
+
+====================
+answer:  def count(bool_list):
+    return sum(1 for x in bool_list if x)
+
+nfe:  27
+avg nfe:  65.96842105263158
+====================
+
+====================
+answer:  def add_lists(lst, tup):
+    # Convert the tuple to a list
+    tup_list = list(tup)
+    
+    # Add the list to the tuple
+    tup_list.extend(lst)
+    
+    # Convert the combined list back to a tuple
+    return tuple(tup_list)
+
+# Test cases
+assert add_lists([5, 6, 7], (9, 10)) == (9, 10, 5, 6, 7)
+assert add_lists([6, 7, 8], (10, 11)) == (10, 11, 6, 7, 8)
+assert add_lists([7, 8, 9], (11, 12)) == (11, 12, 7, 8, 9)
+
+# Additional test cases
+assert add_lists([1, 2, 3], (4, 5)) == (4, 5, 1, 2, 3)
+assert add_lists([], (1, 2, 3)) == (1, 2, 3)
+nfe:  75
+avg nfe:  66.0625
+====================
+
+====================
+answer:  def count_Hexadecimal(start, end):
+    count = 0
+    for num in range(start, end + 1):
+        if num >= 10 and num <= 15:
+            count += 1
+    return count
+
+nfe:  34
+avg nfe:  65.73195876288659
+====================
+
+====================
+answer:  import heapq as hq
+
+def merge_sorted_list(*lists):
+    merged_list = []
+    for lst in lists:
+        merged_list.extend(lst)
+    hq.heapify(merged_list)
+    return hq.nlargest(len(merged_list), merged_list)
+
+# Test cases
+assert merge_sorted_list([25, 24, 15, 4, 5, 29, 110],[19, 20, 11, 56, 25, 233, 154],[24, 26, 54, 48]) == [4, 5, 11, 15, 19, 20, 24, 24, 25, 25, 26, 29, 48, 54, 56, 110, 154, 233]
+
+# Additional test cases can be added similarly to the ones provided. The function should be able to handle any number of sorted lists and merge them into a single sorted list.
+nfe:  87
+avg nfe:  65.94897959183673
+====================
+
+====================
+answer:  def odd_Equivalent(binary_str, n):
+    length = len(binary_str)
+    count = 0
+    for i in range(n):
+        rotated = binary_str[:i] + binary_str[i:]
+        if rotated.count('1') % 2 != 0:
+            count += 1
+    return count
+
+# Test cases
+assert odd_Equivalent("011001", 6) == 3
+assert odd_Equivalent("11011", 5) == 4
+assert odd_Equivalent("1010", 4) == 2
+
+print("All tests passed!")
+
+This function `odd_Equivalent` takes a binary string and an integer `n` as input and returns the count of rotations of the binary string that have an odd number of '1's. The function iterates through all possible rotations of the binary string and checks if the number of '1's in each rotation is odd. If it is, the count is incremented. Finally, the function returns the count.
+
+The test cases provided are used to verify the correctness of the function. If all assertions pass, the function is working as expected.
+nfe:  144
+avg nfe:  66.73737373737374
+====================
+
+====================
+answer:  def extract_missing(ranges, start_range, end_range):
+    existing_ranges = set()
+    missing_ranges = set()
+    
+    for range_tuple in ranges:
+        existing_ranges.add(range_tuple)
+    
+    for start in range(start_range, end_range + 1):
+        for end in range(start, end_range + 1):
+            if (start, end) not in existing_ranges:
+                missing_ranges.add((start, end))
+    
+    return list(missing_ranges)
+
+nfe:  155
+avg nfe:  67.62
+====================
+
+Total number of tokens generated: 14038
+Total time taken: 242.73634552955627 seconds
+Tokens per second: 57.83229446411133
+Total NFE is 6762
+Tokens per forward (TPF): 2.0760130882263184
+2026-04-23:07:09:35 INFO     [loggers.evaluation_tracker:247] Saving results aggregated
+2026-04-23:07:09:35 INFO     [loggers.evaluation_tracker:119] Saving per-task samples to evals_results/baseline/mbpp-s256/41pjso2k/*.jsonl
+llada_dist ({'model_path': 'GSAI-ML/LLaDA-8B-Instruct', 'gen_length': 256, 'steps': 256, 'block_length': 32, 'use_cache': True, 'dual_cache': True, 'threshold': 0.9, 'show_speed': True}), gen_kwargs: ({}), limit: 100.0, num_fewshot: 3, batch_size: 1
+|Tasks|Version|Filter|n-shot| Metric  |   |Value|   |Stderr|
+|-----|------:|------|-----:|---------|---|----:|---|-----:|
+|mbpp |      1|none  |     3|pass_at_1|↑  | 0.28|±  |0.0451|
+
+post-processed accuracy:
+Traceback (most recent call last):
+  File "/home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/llada/postprocess_code.py", line 48, in <module>
+    predictions = [[sanitize(sample['doc']['prompt'] + "\n" + sample['resps'][0][0].split('```python\n', 1)[-1].split('```')[0], 
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/fast_dllm_h200/mixed_fast_dllm/Fast-dLLM/llada/postprocess_code.py", line 48, in <listcomp>
+    predictions = [[sanitize(sample['doc']['prompt'] + "\n" + sample['resps'][0][0].split('```python\n', 1)[-1].split('```')[0], 
+                             ~~~~~~~~~~~~~^^^^^^^^^^
+KeyError: 'prompt'

@@ -1,0 +1,4 @@
+[2026-02-24 01:57:01] humaneval
+sample_file=evals_results/baseline_dual_cache_parallel_4runs/runs/20260224-014632/humaneval-ns0-256/41pjso2k/samples_humaneval_2026-02-24T01-56-32.806527.jsonl
+pass@1=0.36585365853658536
+

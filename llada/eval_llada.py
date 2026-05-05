@@ -390,6 +390,7 @@ class LLaDAEvalHarness(LM):
             print(f"Total time taken: {end_time - start_time} seconds")
             print(f"Tokens per second: {num_tokens / (end_time - start_time)}")
             print(f"Total NFE is {num_nfe}")
+            print(f"Tokens per forward (TPF): {num_tokens / num_nfe if num_nfe > 0 else 0}")
             
         return output
 
