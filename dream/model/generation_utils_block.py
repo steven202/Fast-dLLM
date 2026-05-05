@@ -459,7 +459,16 @@ class DreamGenerationMixin:
             logits = torch.cat([logits[:,:1], logits[:, :-1]], dim=1)
             confidence, x0 = sample_tokens(logits, temperature=temperature, top_p=top_p, top_k=top_k)
             x[:, current_block_start] = x0[:, current_block_start]
-            
+
+            # Initial transfer: lock all high-confidence tokens after warm pass (matching LLaDA baseline)
+            blk_slice = slice(current_block_start, current_block_end)
+            mask_init = (x[:, blk_slice] == mask_token_id)
+            if mask_init.any():
+                conf_blk = confidence[:, blk_slice]
+                transfer_init = mask_init & (conf_blk >= threshold)
+                if transfer_init.any():
+                    x[:, blk_slice][transfer_init] = x0[:, blk_slice][transfer_init]
+
             # Extract only previous block cache
             if not dual_cache:
                 new_past_key_values = []
