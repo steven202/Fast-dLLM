@@ -116,6 +116,7 @@ def sample_tokens(logits, temperature=0.0, top_p=None, top_k=None, margin_confid
 class DreamModelOutput(ModelOutput):
     sequences: torch.LongTensor = None
     history: Optional[Tuple[torch.FloatTensor]] = None
+    nfe: Optional[int] = None
 
 
 class DreamGenerationConfig(GenerationConfig):
@@ -408,6 +409,9 @@ class DreamGenerationMixin:
 
         histories = [] if (return_dict_in_generate and output_history) else None
 
+        # NFE counter
+        num_nfe = 0
+
         # pad input_ids to max_length
         x = F.pad(input_ids, (0, max_length - input_ids.shape[1]), value=mask_token_id)
         gen_length = max_length - input_ids.shape[1]
@@ -448,6 +452,7 @@ class DreamGenerationMixin:
             current_block_end = current_block_start + block_length
 
             # update cache
+            num_nfe += 1
             model_output = self(x, attention_mask, tok_idx, use_cache=True)
             past_key_values = model_output.past_key_values
             logits = model_output.logits
@@ -483,12 +488,14 @@ class DreamGenerationMixin:
                     current_attention_mask = attention_mask
                 
                 if dual_cache:
-                    model_output = self(x[:, current_block_start:current_block_end], current_attention_mask, 
-                                    tok_idx[:, current_block_start:current_block_end] if tok_idx is not None else None, 
+                    num_nfe += 1
+                    model_output = self(x[:, current_block_start:current_block_end], current_attention_mask,
+                                    tok_idx[:, current_block_start:current_block_end] if tok_idx is not None else None,
                                     past_key_values=past_key_values, use_cache=True, dual_cache=dual_cache, replace_position=replace_position)
                 else:
-                    model_output = self(x[:, current_block_start:], current_attention_mask, 
-                                    tok_idx[:, current_block_start:] if tok_idx is not None else None, 
+                    num_nfe += 1
+                    model_output = self(x[:, current_block_start:], current_attention_mask,
+                                    tok_idx[:, current_block_start:] if tok_idx is not None else None,
                                     past_key_values=past_key_values, use_cache=True)
                 logits = model_output.logits
                 logits = torch.cat([logits[:,:1], logits[:, :-1]], dim=1)
@@ -507,17 +514,14 @@ class DreamGenerationMixin:
                     x_[mask_index] = x0.clone()
                     full_confidence[mask_index] = confidence
                     full_confidence[:, block_length:] = -torch.inf
-                    
-                    current_transfer_tokens = (x[:, current_block_start:current_block_end] == mask_token_id).sum()
-                    
-                    selected_confidence, select_index = torch.topk(full_confidence, current_transfer_tokens)
-                    transfer_index = torch.zeros_like(x_, device=x.device, dtype=torch.bool)
-                    
-                    select_index = select_index.to(x.device)
-                    transfer_index[0, select_index[0]] = True
-                    for k in range(1, current_transfer_tokens):
-                        if selected_confidence[0, k] < threshold:
-                            transfer_index[0, select_index[0, k]] = False
+
+                    # Vectorized threshold-based transfer
+                    transfer_mask = full_confidence >= threshold
+                    # Always transfer at least the max-confidence masked token
+                    max_idx = torch.argmax(full_confidence, dim=1, keepdim=True)
+                    force_mask = torch.zeros_like(transfer_mask, dtype=torch.bool).scatter_(1, max_idx, True)
+                    transfer_index = (transfer_mask | force_mask) & mask_index
+
                     if dual_cache:
                         x[:, current_block_start:current_block_end][transfer_index] = x_[transfer_index]
                     else:
@@ -566,6 +570,7 @@ class DreamGenerationMixin:
             return DreamModelOutput(
                 sequences=x,
                 history=histories,
+                nfe=num_nfe,
             )
         else:
             return x
